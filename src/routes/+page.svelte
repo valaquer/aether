@@ -1300,7 +1300,7 @@
 									placeholder=""
 									style="color: var(--color-text); font-family: var(--font-mono); font-size: 12px; font-weight: 300; border: none; max-height: 200px; overflow: hidden;"
 								></textarea>
-								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">J2A</span></div>
+								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">PM2</span></div>
 							</div>
 						</div>
 					</form>

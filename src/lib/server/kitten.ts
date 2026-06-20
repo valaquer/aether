@@ -1,6 +1,6 @@
 import { exec, execFile } from "child_process";
 import { promisify } from "util";
-import { readdirSync, existsSync, writeFileSync, unlinkSync } from "fs";
+import { readdirSync, existsSync } from "fs";
 import os from "os";
 
 const execFileAsync = promisify(execFile);
@@ -130,9 +130,16 @@ export function sendToKitty(
 			const enterDelay = Math.min(Math.max(1000, len * 0.5), 10000);
 			const t0 = Date.now();
 
-			// Write text to NFS temp file to avoid shell escaping issues over SSH
-			const tmpFile = `/Users/d.patnaik/honeybloom/library/aether/.sendtext-${teammate}-${Date.now()}.tmp`;
-			writeFileSync(tmpFile, text);
+			// Write text to temp file on iMac via SSH (kitten --from-file reads iMac-local paths)
+			const tmpFile = `/tmp/.sendtext-${teammate}-${Date.now()}.tmp`;
+			const writeCmd = `cat > '${tmpFile}'`;
+			await new Promise<void>((resolve, reject) => {
+				const child = exec(`${IMAC_SSH} "${writeCmd}"`, { timeout: 5000 }, (err) => {
+					if (err) reject(err); else resolve();
+				});
+				child.stdin?.write(text);
+				child.stdin?.end();
+			});
 
 			try {
 				const sendArgs = socket === "__default__"
@@ -154,7 +161,8 @@ export function sendToKitty(
 
 				result = "delivered";
 			} finally {
-				try { unlinkSync(tmpFile); } catch {}
+				// Clean up temp file on iMac
+				exec(`${IMAC_SSH} "rm -f '${tmpFile}'"`, { timeout: 3000 });
 			}
 		} catch (err) {
 			result = `error: ${err instanceof Error ? err.message : String(err)}`;
@@ -217,7 +225,7 @@ export async function closeKittyTab(teammate: string): Promise<boolean> {
 	}
 }
 
-const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/honeybloom/chica/scripts/kitty-open-teammate.sh";
+const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/raycast/kitty-open-teammate.sh";
 const SSH_KEY = "/Users/deepak-macmini/.ssh/id_mini";
 const IMAC_USER = "d.patnaik";
 const IMAC_HOST = "192.168.0.155";
