@@ -216,3 +216,22 @@ export async function closeKittyTab(teammate: string): Promise<boolean> {
 		return false;
 	}
 }
+
+const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/honeybloom/chica/scripts/kitty-open-teammate.sh";
+const SSH_KEY = "/Users/deepak-macmini/.ssh/id_mini";
+const IMAC_USER = "d.patnaik";
+const IMAC_HOST = "192.168.0.155";
+
+export async function launchTeammate(name: string): Promise<boolean> {
+	try {
+		await execFileAsync("ssh", [
+			"-i", SSH_KEY,
+			"-o", "ConnectTimeout=5",
+			`${IMAC_USER}@${IMAC_HOST}`,
+			`${IMAC_LAUNCH_SCRIPT} --solo ${name}`
+		], { timeout: 30000 });
+		return true;
+	} catch {
+		return false;
+	}
+}

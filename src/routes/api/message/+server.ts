@@ -1,10 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { sendToKitty, isTabAlive } from "$lib/server/kitten";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
-const LAUNCH_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/kitty-open-teammate.sh";
+import { sendToKitty, isTabAlive, launchTeammate } from "$lib/server/kitten";
 import { emitEvent } from "$lib/server/events";
 import {
 	saveMessage,
@@ -242,7 +237,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				const alive = await isTabAlive(targetTeammate);
 				if (!alive) {
 					try {
-						await execFileAsync(LAUNCH_SCRIPT, ["--solo", targetTeammate], { timeout: 30000 });
+						await launchTeammate(targetTeammate);
 						woke = true;
 					} catch {}
 				}

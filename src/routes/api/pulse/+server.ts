@@ -1,12 +1,7 @@
 import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
-import { isTabAlive, sendToKitty } from "$lib/server/kitten";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { isTabAlive, sendToKitty, launchTeammate } from "$lib/server/kitten";
 import { readdirSync, readFileSync } from "fs";
-
-const execFileAsync = promisify(execFile);
-const LAUNCH_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/kitty-open-teammate.sh";
 const STATE_DIR = "/Users/deepak-macmini/honeybloom/library/aether/reminders-state";
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -19,7 +14,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	if (!wasAlive) {
 		try {
-			await execFileAsync(LAUNCH_SCRIPT, ["--solo", teammate], { timeout: 30000 });
+			await launchTeammate(teammate);
 			// Wait for sidebar registration
 			await new Promise((resolve) => setTimeout(resolve, 5000));
 		} catch (err) {

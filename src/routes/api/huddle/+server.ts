@@ -10,21 +10,14 @@ import {
 	resolveActiveRoom,
 } from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
-import { sendToKitty, isTabAlive } from "$lib/server/kitten";
+import { sendToKitty, isTabAlive, launchTeammate } from "$lib/server/kitten";
 import { endHuddle, removeFromHuddle } from "$lib/server/huddle-helpers";
 import { startTokenTimer } from "$lib/server/token-helpers";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
 import { v4 } from "uuid";
-
-const execAsync = promisify(exec);
 
 async function autoWake(name: string): Promise<string> {
 	try {
-		await execAsync(
-			`/Users/deepak-macmini/honeybloom/library/scripts/kitty-open-teammate.sh --solo ${name}`,
-			{ timeout: 15000 }
-		);
+		await launchTeammate(name);
 		for (let i = 0; i < 60; i++) {
 			if (await isTabAlive(name)) return "ready";
 			await new Promise((r) => setTimeout(r, 500));

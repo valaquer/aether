@@ -4,9 +4,7 @@
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucideFastForward from '~icons/lucide/fast-forward';
 	import LucideRadio from '~icons/lucide/radio';
-	import LucideMessageSquareOff from '~icons/lucide/message-square-off';
 	import LucideVolumeX from '~icons/lucide/volume-x';
-	import LucideZap from '~icons/lucide/zap';
 	import LucideMaximize2 from '~icons/lucide/maximize-2';
 	import LucideMinimize2 from '~icons/lucide/minimize-2';
 	import LucideX from '~icons/lucide/x';
@@ -19,7 +17,7 @@
 	import LucideMilestone from '~icons/lucide/milestone';
 	import LucideConstruction from '~icons/lucide/construction';
 	import LucidePower from '~icons/lucide/power';
-	import LucideGhost from '~icons/lucide/ghost';
+	import LucideFlame from '~icons/lucide/flame';
 
 	marked.setOptions({ breaks: true, gfm: true });
 
@@ -196,7 +194,7 @@
 			if (!pre) return;
 			const code = pre.querySelector('code');
 			if (!code) return;
-			navigator.clipboard.writeText(code.textContent || '');
+			try { navigator.clipboard.writeText(code.textContent || ''); } catch { fallbackCopyText(code.textContent || ''); }
 			btn.textContent = 'Copied';
 			setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
 		});
@@ -300,33 +298,30 @@
 	let userScrolledUp = $state(false);
 	let loadingRoom = $state("");
 	let broadcastedMsgId = $state<string | null>(null);
-	let rekindling = $state(false);
-	let rekindleFlash = $state(false);
-	let zombieCount = $state(0);
 	let pulsingTeammates = $state<string[]>([]);
 	let activeAccount = $state("?");
-	let zombifying = $state(false);
+	let amberCount = $state(0);
+	let rekindling = $state(false);
+	async function fetchAmberCount() {
+		try {
+			const r = await fetch("/api/rekindle");
+			if (r.ok) { const d = await r.json(); amberCount = d.amberCount ?? 0; }
+		} catch {}
+	}
+	async function rekindleAll() {
+		if (rekindling) return;
+		rekindling = true;
+		try {
+			await fetch("/api/rekindle", { method: "POST" });
+			await fetchAmberCount();
+		} catch {} finally {
+			rekindling = false;
+		}
+	}
 	async function fetchActiveAccount() {
 		try {
 			const r = await fetch("/api/account-switch");
 			if (r.ok) { const d = await r.json(); activeAccount = d.account === "oovar" ? "O" : d.account === "gmail" ? "G" : "?"; }
-		} catch {}
-	}
-	async function makeZombies() {
-		if (zombifying) return;
-		zombifying = true;
-		try {
-			const res = await fetch("/api/ghost", { method: "POST" });
-			if (!res.ok) throw new Error();
-			await fetchZombieCount();
-		} catch {} finally {
-			zombifying = false;
-		}
-	}
-	async function fetchZombieCount() {
-		try {
-			const r = await fetch("/api/rekindle");
-			if (r.ok) { const d = await r.json(); zombieCount = d.zombieCount ?? 0; }
 		} catch {}
 	}
 	function isMutedInRoom(participant: string, roomId: string): boolean {
@@ -470,25 +465,6 @@
 		if (convId?.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
 	}
 
-	async function rekindleZombies() {
-		if (rekindling) return;
-		rekindling = true;
-		try {
-			const res = await fetch("/api/rekindle", { method: "POST" });
-			if (!res.ok) throw new Error();
-			const data = await res.json();
-			if (data.rekindled.length > 0) {
-				rekindleFlash = true;
-				setTimeout(() => rekindleFlash = false, 1500);
-			}
-			await fetchZombieCount();
-		} catch {
-			// silent fail
-		} finally {
-			rekindling = false;
-		}
-	}
-
 	async function sendPauseMessage() {
 		if (pausing) return;
 		pausing = true;
@@ -617,11 +593,8 @@
 				if (data.teammate) {
 					pulsingTeammates = pulsingTeammates.filter(n => n !== data.teammate);
 				}
-			} else if (data.type === "zombie_update") {
-				zombieCount = data.zombieCount ?? 0;
-			} else if (data.type === "huddle_update") {
+				} else if (data.type === "huddle_update") {
 				if (!nuking) loadSidebar();
-				fetchZombieCount();
 			} else if (data.type === "message") {
 				const convId = data.conversationId;
 				const msg: ChatMsg = {
@@ -684,8 +657,8 @@
 			fetch("/api/activity-mute").then(r => r.json()).then(d => { mutedEntries = d; }).catch(() => {}),
 			fetch("/api/activity-deaf").then(r => r.json()).then(d => { deafEntries = d; }).catch(() => {}),
 			fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {}),
-			fetchZombieCount(),
 			fetchActiveAccount(),
+			fetchAmberCount(),
 		]).then(() => {
 			// Force room-switch $effect to re-run and load messages
 			prevRoom = "";
@@ -711,8 +684,8 @@
 		fetch("/api/activity-mute").then(r => r.json()).then(d => { mutedEntries = d; }).catch(() => {});
 		fetch("/api/activity-deaf").then(r => r.json()).then(d => { deafEntries = d; }).catch(() => {});
 		fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {});
-		fetchZombieCount();
 		fetchActiveAccount();
+		fetchAmberCount();
 		connectEventSource();
 		pulsePoller = setInterval(() => {
 			fetch("/api/pulse").then(r => r.json()).then(d => {
@@ -720,7 +693,7 @@
 				if (pending.length > 0) { pulsingTeammates = [...new Set([...pulsingTeammates, ...pending])]; }
 			}).catch(() => {});
 		}, 60000);
-		zombiePoller = setInterval(() => { fetchZombieCount(); loadSidebar(); }, 5000);
+		sidebarPoller = setInterval(() => { loadSidebar(); fetchAmberCount(); }, 5000);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	});
 
@@ -729,7 +702,7 @@
 		if (sseTimeout) clearTimeout(sseTimeout);
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		if (pulsePoller) clearInterval(pulsePoller);
-		if (zombiePoller) clearInterval(zombiePoller);
+		if (sidebarPoller) clearInterval(sidebarPoller);
 		if (typeof document !== 'undefined') {
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 		}
@@ -743,7 +716,7 @@
 		inputRef.style.height = Math.min(inputRef.scrollHeight, 200) + 'px';
 	}
 	let pulsePoller: ReturnType<typeof setInterval> | undefined;
-	let zombiePoller: ReturnType<typeof setInterval> | undefined;
+	let sidebarPoller: ReturnType<typeof setInterval> | undefined;
 
 
 	$effect(() => {
@@ -992,7 +965,10 @@
 		try {
 			archiveFlashName = name;
 			pulsingTeammates = pulsingTeammates.filter(n => n !== name);
-			selectedIndex = findNextRoom(selectedIndex);
+			const currentNav = navItems[selectedIndex];
+			if (currentNav?.type === "teammate" && currentNav.item?.name === name) {
+				selectedIndex = findNextRoom(selectedIndex);
+			}
 			fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: name }) }).catch(() => {});
 			await fetch("/api/rooms/deactivate", {
 				method: "POST",
@@ -1011,7 +987,9 @@
 	async function archiveHuddle(roomId: string) {
 		try {
 			archiveFlashRoom = roomId;
-			selectedIndex = findNextRoom(selectedIndex);
+			if (selectedConvId === roomId) {
+				selectedIndex = findNextRoom(selectedIndex);
+			}
 			await fetch("/api/archive-huddle", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -1038,6 +1016,31 @@
 		}
 	}
 
+	function fallbackCopyText(text: string) {
+		const ta = document.createElement("textarea");
+		ta.value = text;
+		ta.style.cssText = "position:fixed;left:-9999px";
+		document.body.appendChild(ta);
+		ta.select();
+		document.execCommand("copy");
+		document.body.removeChild(ta);
+	}
+
+	function fallbackCopyRich(html: string, plain: string) {
+		const div = document.createElement("div");
+		div.contentEditable = "true";
+		div.innerHTML = html;
+		div.style.cssText = "position:fixed;left:-9999px";
+		document.body.appendChild(div);
+		const range = document.createRange();
+		range.selectNodeContents(div);
+		const sel = window.getSelection();
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+		document.execCommand("copy");
+		document.body.removeChild(div);
+	}
+
 	async function copyRoom(roomId: string) {
 		try {
 			const res = await fetch("/api/copy-room", {
@@ -1047,7 +1050,8 @@
 			});
 			if (!res.ok) return;
 			const { filePath } = await res.json();
-			await navigator.clipboard.writeText(`Read up on the conversation that happened in this room: ${filePath}`);
+			const text = `Read up on the conversation that happened in this room: ${filePath}`;
+			try { await navigator.clipboard.writeText(text); } catch { fallbackCopyText(text); }
 			copyFlashRoom = roomId;
 			setTimeout(() => { copyFlashRoom = ""; }, 1500);
 		} catch {}
@@ -1059,12 +1063,14 @@
 			const contentEl = row?.querySelector('.md-content') ?? row?.firstElementChild;
 			const html = `<strong>${msg.sender}</strong><br>${contentEl?.innerHTML ?? msg.content}`;
 			const plain = `${msg.sender}\n${msg.content}`;
-			await navigator.clipboard.write([
-				new ClipboardItem({
-					"text/html": new Blob([html], { type: "text/html" }),
-					"text/plain": new Blob([plain], { type: "text/plain" }),
-				})
-			]);
+			try {
+				await navigator.clipboard.write([
+					new ClipboardItem({
+						"text/html": new Blob([html], { type: "text/html" }),
+						"text/plain": new Blob([plain], { type: "text/plain" }),
+					})
+				]);
+			} catch { fallbackCopyRich(html, plain); }
 			copyFlashMsgId = msg.id;
 			setTimeout(() => { copyFlashMsgId = ""; }, 1500);
 		} catch {}
@@ -1122,7 +1128,7 @@
 						onclick={() => { if (pulsingTeammates.includes(fmt.label)) { pulsingTeammates = pulsingTeammates.filter(n => n !== fmt.label); fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: fmt.label }) }).catch(() => {}); } selectedIndex = i; }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
-						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online ? '#4ade80' : '#555'}; {item.online ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
+						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online ? '#4ade80' : (!item.id.startsWith('offline-') ? '#f59e0b' : '#555')}; {item.online ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : (!item.id.startsWith('offline-') ? 'box-shadow: 0 0 4px #f59e0b, 0 0 8px #f59e0b66;' : '')}"></span><span style="{item.online ? '' : (!item.id.startsWith('offline-') ? '' : 'color: #555; opacity: 0.35;')}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
 						{#if item.online}<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1249,11 +1255,8 @@
 				<span class="control-btn" title="Active account: {activeAccount === 'G' ? 'Gmail' : activeAccount === 'O' ? 'Oovar' : 'Unknown'}">
 					<span style="font-family: var(--font-sans); font-size: 14px; color: #555;">{activeAccount}</span>
 				</span>
-				<button class="control-btn" onclick={makeZombies} disabled={zombifying} title="Ghost — kill all tabs, preserve rooms">
-					<LucideGhost width={14} height={14} style="color: {zombifying ? '#7a5e4a' : '#555'};" />
-				</button>
-				<button class="control-btn" onclick={rekindleZombies} disabled={rekindling} title="Rekindle — relight all zombie rooms">
-					<span class={rekindleFlash || zombieCount > 0 ? 'zap-active' : ''}><LucideZap width={14} height={14} style="color: {rekindleFlash || zombieCount > 0 ? '#7a5e4a' : '#555'};" /></span>
+				<button class="control-btn" onclick={rekindleAll} disabled={rekindling || amberCount === 0} title="Rekindle — bring back disconnected teammates">
+					<LucideFlame width={14} height={14} style="color: {amberCount > 0 ? '#f59e0b' : '#555'};" />
 				</button>
 				<button class="control-btn" onclick={() => focusMode = !focusMode} title={focusMode ? "Exit focus mode" : "Focus mode"}>
 						{#if focusMode}
@@ -1374,13 +1377,7 @@
 {/if}
 
 <style>
-	.zap-active :global(svg) {
-		filter: drop-shadow(0 0 3px #7a5e4a);
-	}
-	.zap-active :global(path) {
-		fill: currentColor;
-	}
-	.teammate-row:hover .dismiss-btn {
+.teammate-row:hover .dismiss-btn {
 		opacity: 1 !important;
 	}
 	.sidebar-row:hover .sidebar-actions,
@@ -1544,20 +1541,6 @@
 	@keyframes led-pulse {
 		0%, 100% { background: #ff3333; }
 		50% { background: #ffffff; }
-	}
-	.livemirror-led {
-		position: absolute;
-		left: -20px;
-		top: calc(2rem + 0.5rem - 1px + 6px);
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: #666;
-		transition: background 0.3s, box-shadow 0.3s;
-	}
-	.livemirror-led.active {
-		background: #4ade80;
-		box-shadow: 0 0 6px #4ade80;
 	}
 	.notification-pulse {
 		animation: notification-pulse 1s ease-in-out infinite;
