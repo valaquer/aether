@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
-import { emitEvent, type FacadeEvent } from "./events";
+import { emitEvent, type AetherEvent } from "./events";
 import {
 	getActiveRoomsForTeammate,
 	getHarnessState,
@@ -157,7 +157,7 @@ function emitTextResponse(
 			createdAt,
 			type: "response",
 		});
-		const event: FacadeEvent = {
+		const event: AetherEvent = {
 			type: "message" as const,
 			id: roomId,
 			conversationId: room,
@@ -174,7 +174,7 @@ let lastRowId: number = Number(getHarnessState("opencode_last_rowid") || "0");
 let watcherCleanup: (() => void) | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Claude Code JSONL reader state — offsets persisted in Facade DB
+// Claude Code JSONL reader state — offsets persisted in Aether DB
 const jsonlOffsets = new Map<string, number>();
 // Context limit alert state — keyed by JSONL file path, auto-resets on new session
 const contextAlerted = ((globalThis as Record<string, unknown>).__contextAlerted ??

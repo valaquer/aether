@@ -32,7 +32,7 @@ export async function initServer(): Promise<void> {
 		MetricsServer.getInstance();
 	}
 
-	// MongoDB migrations + stats skipped — Facade uses SQLite (aether-db.ts), not MongoDB
+	// MongoDB migrations + stats skipped — Aether uses SQLite (aether-db.ts), not MongoDB
 	// checkAndRunMigrations();
 	// refreshConversationStats();
 

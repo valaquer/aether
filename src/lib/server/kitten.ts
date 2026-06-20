@@ -7,7 +7,7 @@ const execFileAsync = promisify(execFile);
 
 const KITTEN = "/opt/homebrew/bin/kitten";
 
-// Kitty runs on iMac — all kitten commands go through SSH when Facade is on Mini
+// Kitty runs on iMac — all kitten commands go through SSH when Aether is on Mini
 const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.155";
 const IS_MINI = os.hostname().includes("Mini");
 

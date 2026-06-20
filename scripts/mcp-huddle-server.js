@@ -104,7 +104,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 	],
 }));
 
-async function callFacade(action, body) {
+async function callAether(action, body) {
 	try {
 		const res = await fetch(`${AETHER_URL}/api/huddle`, {
 			method: "POST",
@@ -113,15 +113,15 @@ async function callFacade(action, body) {
 		});
 		if (!res.ok) {
 			const text = await res.text();
-			return `Error: Facade returned ${res.status}: ${text}`;
+			return `Error: Aether returned ${res.status}: ${text}`;
 		}
 		return JSON.stringify(await res.json());
 	} catch (err) {
-		return `Error: Facade is not responding at ${AETHER_URL}`;
+		return `Error: Aether is not responding at ${AETHER_URL}`;
 	}
 }
 
-async function callFacadeToken(action, body) {
+async function callAetherToken(action, body) {
 	try {
 		const res = await fetch(`${AETHER_URL}/api/huddle`, {
 			method: "POST",
@@ -130,12 +130,12 @@ async function callFacadeToken(action, body) {
 		});
 		if (!res.ok) {
 			const text = await res.text();
-			return `Error: Facade returned ${res.status}: ${text}`;
+			return `Error: Aether returned ${res.status}: ${text}`;
 		}
 		const data = await res.json();
 		return data.result;
 	} catch (err) {
-		return `Error: Facade is not responding at ${AETHER_URL}`;
+		return `Error: Aether is not responding at ${AETHER_URL}`;
 	}
 }
 
@@ -147,20 +147,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				content: [
 					{
 						type: "text",
-						text: await callFacade("start", { host: args.host, participants: args.participants }),
+						text: await callAether("start", { host: args.host, participants: args.participants }),
 					},
 				],
 			};
 		case "end_huddle":
 			return {
-				content: [{ type: "text", text: await callFacade("end", { roomId: args.roomId }) }],
+				content: [{ type: "text", text: await callAether("end", { roomId: args.roomId }) }],
 			};
 		case "add_to_huddle":
 			return {
 				content: [
 					{
 						type: "text",
-						text: await callFacade("add", { roomId: args.roomId, participants: args.participants }),
+						text: await callAether("add", { roomId: args.roomId, participants: args.participants }),
 					},
 				],
 			};
@@ -169,7 +169,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				content: [
 					{
 						type: "text",
-						text: await callFacade("remove", {
+						text: await callAether("remove", {
 							roomId: args.roomId,
 							participants: args.participants,
 						}),
@@ -181,7 +181,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				content: [
 					{
 						type: "text",
-						text: await callFacadeToken("request", { sender: args.sender, roomId: args.roomId }),
+						text: await callAetherToken("request", { sender: args.sender, roomId: args.roomId }),
 					},
 				],
 			};
@@ -217,7 +217,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				};
 			} catch (err) {
 				return {
-					content: [{ type: "text", text: `Error: Facade is not responding at ${AETHER_URL}` }],
+					content: [{ type: "text", text: `Error: Aether is not responding at ${AETHER_URL}` }],
 				};
 			}
 		}

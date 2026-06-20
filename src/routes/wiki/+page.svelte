@@ -42,7 +42,7 @@
 </script>
 
 <svelte:head>
-	<title>Wiki – Facade</title>
+	<title>Wiki – Aether</title>
 </svelte:head>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -197,7 +197,7 @@
 		font-family: var(--font-mono);
 	}
 
-	/* Wikilink styling — matches Facade link colors */
+	/* Wikilink styling — matches Aether link colors */
 	.wiki-reading-pane :global(.wikilink) {
 		color: #7a5e4a;
 		text-decoration: none;

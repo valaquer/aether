@@ -81,7 +81,7 @@
 </script>
 
 <svelte:head>
-	<title>Bavaria – Facade</title>
+	<title>Bavaria – Aether</title>
 </svelte:head>
 
 <svelte:window onkeydown={handleKeydown} />

@@ -188,7 +188,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		timestamp: createdAt,
 	});
 
-	// System messages are Facade-only — no Kitty forwarding
+	// System messages are Aether-only — no Kitty forwarding
 	if (sender === "system") {
 		return new Response(
 			JSON.stringify({ id, conversationId: resolvedRoom, sender, content: body, createdAt }),
