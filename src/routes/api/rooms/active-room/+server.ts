@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getActiveRoomsForTeammate } from "$lib/server/facade-db";
+import { getActiveRoomsForTeammate } from "$lib/server/aether-db";
 
 export const GET: RequestHandler = async ({ url }) => {
 	const name = url.searchParams.get("name");

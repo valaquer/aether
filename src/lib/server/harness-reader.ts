@@ -7,7 +7,7 @@ import {
 	getHarnessState,
 	setHarnessState,
 	saveMessage,
-} from "./facade-db";
+} from "./aether-db";
 
 const OPENCODE_DB = "/Users/deepak-macmini/.local/share/opencode/opencode.db";
 const CLAUDE_PROJECTS_DIR = "/Users/deepak-macmini/.claude/projects";
@@ -51,7 +51,7 @@ function getActiveSessions(db: Database.Database): Map<string, string> {
 	return latest;
 }
 
-const JUNK_PHRASES_FILE = "/Users/deepak-macmini/honeybloom/library/facade/junk-phrases.md";
+const JUNK_PHRASES_FILE = "/Users/deepak-macmini/honeybloom/library/aether/junk-phrases.md";
 
 function loadJunkPhrases(): { exact: string[]; prefix: string[] } {
 	try {
@@ -88,8 +88,8 @@ function isJunkSentence(sentence: string, phrases: { exact: string[]; prefix: st
 	return false;
 }
 
-const ACTIVITY_MUTE_FILE = "/Users/deepak-macmini/honeybloom/library/facade/activity-mute.md";
-const ACTIVITY_DEAF_FILE = "/Users/deepak-macmini/honeybloom/library/facade/activity-deaf.md";
+const ACTIVITY_MUTE_FILE = "/Users/deepak-macmini/honeybloom/library/aether/activity-mute.md";
+const ACTIVITY_DEAF_FILE = "/Users/deepak-macmini/honeybloom/library/aether/activity-deaf.md";
 
 export function isActivityMuted(sender: string, room: string): boolean {
 	try {
@@ -275,7 +275,7 @@ function checkClaudeJsonl(filePath: string, teammate: string): void {
 						if (trimmed.startsWith("Human:") || trimmed.startsWith("<system-reminder>")) continue;
 						emitTextResponse({ text: part.text }, teammate, createdAt);
 					}
-					// Skip tool_use — facade-relay.sh already covers tool activity for Claude Code
+					// Skip tool_use — aether-relay.sh already covers tool activity for Claude Code
 				}
 			} catch {
 				// Skip malformed lines

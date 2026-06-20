@@ -1,6 +1,6 @@
 import type { RequestHandler } from "./$types";
 import { getAliveTeammates, closeKittyTab } from "$lib/server/kitten";
-import { getRoomsByType } from "$lib/server/facade-db";
+import { getRoomsByType } from "$lib/server/aether-db";
 import { endHuddle } from "$lib/server/huddle-helpers";
 import { execFile } from "child_process";
 import { promisify } from "util";

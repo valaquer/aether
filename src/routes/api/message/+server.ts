@@ -14,7 +14,7 @@ import {
 	roomExists,
 	getHuddleMembers,
 	getTokenHolder,
-} from "$lib/server/facade-db";
+} from "$lib/server/aether-db";
 import {
 	advanceTokenAndNotify,
 	clearTokensAndNotify,
@@ -108,12 +108,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		let systemContent = "";
 
 		if (command === "/start-livemirror") {
-			const globalFlag = "/Users/deepak-macmini/honeybloom/library/facade/livemirror-global";
+			const globalFlag = "/Users/deepak-macmini/honeybloom/library/aether/livemirror-global";
 			fs.writeFileSync(globalFlag, new Date().toISOString());
 			emitEvent({ type: "livemirror_status", active: true });
 			systemContent = "Live mirror started for all teammates";
 		} else if (command === "/end-livemirror") {
-			const globalFlag = "/Users/deepak-macmini/honeybloom/library/facade/livemirror-global";
+			const globalFlag = "/Users/deepak-macmini/honeybloom/library/aether/livemirror-global";
 			try {
 				fs.unlinkSync(globalFlag);
 			} catch {
@@ -123,7 +123,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			try {
 				const dir = fs.readdirSync("/tmp");
 				for (const f of dir) {
-					if (f.startsWith("facade-relay-active-")) {
+					if (f.startsWith("aether-relay-active-")) {
 						fs.unlinkSync(`/tmp/${f}`);
 					}
 				}

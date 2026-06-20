@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Facade MCP Server — stdio-based MCP server for teammates.
-// Exposes: post_to_facade(body: string)
+// Aether MCP Server — stdio-based MCP server for teammates.
+// Exposes: post_to_aether(body: string)
 // Called via MCP from Kitty teammate tabs.
 
 import { basename } from "path";
@@ -8,20 +8,20 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const FACADE_URL = process.env.FACADE_URL || "http://localhost:51730";
-const SENDER = process.env.FACADE_SENDER || basename(process.cwd());
-const ROOM = process.env.FACADE_ROOM || "direct-boss";
+const AETHER_URL = process.env.AETHER_URL || "http://localhost:51730";
+const SENDER = process.env.AETHER_SENDER || basename(process.cwd());
+const ROOM = process.env.AETHER_ROOM || "direct-boss";
 
 const server = new Server(
-	{ name: "Facade MCP", version: "0.1.0" },
+	{ name: "Aether MCP", version: "0.1.0" },
 	{ capabilities: { tools: {} } }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
 	tools: [
 		{
-			name: "post_to_facade",
-			description: "Post a message to a Facade room from your Kitty tab",
+			name: "post_to_aether",
+			description: "Post a message to a Aether room from your Kitty tab",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -35,7 +35,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-	if (request.params.name !== "post_to_facade") {
+	if (request.params.name !== "post_to_aether") {
 		throw new Error(`Unknown tool: ${request.params.name}`);
 	}
 
@@ -47,7 +47,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 	}
 
 	try {
-		const res = await fetch(`${FACADE_URL}/api/message`, {
+		const res = await fetch(`${AETHER_URL}/api/message`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ sender: SENDER, body, room }),

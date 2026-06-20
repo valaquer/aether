@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getRoomsByType, getHuddleMembers, resolveActiveRoom } from "$lib/server/facade-db";
+import { getRoomsByType, getHuddleMembers, resolveActiveRoom } from "$lib/server/aether-db";
 import { isTabAlive, sendToKitty } from "$lib/server/kitten";
 import { execFile } from "child_process";
 import { promisify } from "util";

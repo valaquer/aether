@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
 import { readdirSync, unlinkSync } from "fs";
 
-const STATE_DIR = "/Users/deepak-macmini/honeybloom/library/facade/reminders-state";
+const STATE_DIR = "/Users/deepak-macmini/honeybloom/library/aether/reminders-state";
 
 export const POST: RequestHandler = async ({ request }) => {
 	const { teammate } = await request.json();

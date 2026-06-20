@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getRoomsByType } from "$lib/server/facade-db";
+import { getRoomsByType } from "$lib/server/aether-db";
 import { isTabAlive } from "$lib/server/kitten";
 import { emitEvent } from "$lib/server/events";
 

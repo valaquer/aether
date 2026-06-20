@@ -8,7 +8,7 @@ import {
 	requestToken,
 	initHuddleToken,
 	resolveActiveRoom,
-} from "$lib/server/facade-db";
+} from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
 import { sendToKitty, isTabAlive } from "$lib/server/kitten";
 import { endHuddle, removeFromHuddle } from "$lib/server/huddle-helpers";

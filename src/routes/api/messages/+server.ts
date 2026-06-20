@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getMessages, getRoom } from "$lib/server/facade-db";
+import { getMessages, getRoom } from "$lib/server/aether-db";
 
 export const GET: RequestHandler = async ({ url }) => {
 	const room = url.searchParams.get("room");

@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import fs from "fs";
 import path from "path";
 
-const PREFS_FILE = path.join("/Users/deepak-macmini/honeybloom/library/facade/facade-preferences.json");
+const PREFS_FILE = path.join("/Users/deepak-macmini/honeybloom/library/aether/aether-preferences.json");
 
 function readPrefs(): Record<string, string> {
 	try {

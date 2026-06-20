@@ -4,7 +4,7 @@ import {
 	getBookmarks,
 	updateBookmarkName,
 	deleteBookmark,
-} from "$lib/server/facade-db";
+} from "$lib/server/aether-db";
 import { v4 } from "uuid";
 
 export const GET: RequestHandler = async () => {

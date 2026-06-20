@@ -131,7 +131,7 @@ export function sendToKitty(
 			const t0 = Date.now();
 
 			// Write text to NFS temp file to avoid shell escaping issues over SSH
-			const tmpFile = `/Users/d.patnaik/honeybloom/library/facade/.sendtext-${teammate}-${Date.now()}.tmp`;
+			const tmpFile = `/Users/d.patnaik/honeybloom/library/aether/.sendtext-${teammate}-${Date.now()}.tmp`;
 			writeFileSync(tmpFile, text);
 
 			try {

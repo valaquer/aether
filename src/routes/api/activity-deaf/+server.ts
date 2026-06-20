@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import { readFileSync, watch, existsSync } from "fs";
 import { emitEvent } from "$lib/server/events";
 
-const ACTIVITY_DEAF_FILE = "/Users/deepak-macmini/honeybloom/library/facade/activity-deaf.md";
+const ACTIVITY_DEAF_FILE = "/Users/deepak-macmini/honeybloom/library/aether/activity-deaf.md";
 
 if (globalThis.__deafWatcher) globalThis.__deafWatcher.close();
 if (existsSync(ACTIVITY_DEAF_FILE)) {

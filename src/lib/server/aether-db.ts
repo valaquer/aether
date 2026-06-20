@@ -5,8 +5,8 @@ import crypto from "crypto";
 import { execSync } from "child_process";
 
 import os from "os";
-const DB_DIR = os.hostname().includes("Mini") ? "/Users/deepak-macmini/honeybloom/library/facade" : "/Users/d.patnaik/honeybloom/library/facade";
-const DB_PATH = path.join(DB_DIR, "facade.db");
+const DB_DIR = os.hostname().includes("Mini") ? "/Users/deepak-macmini/honeybloom/library/aether" : "/Users/d.patnaik/honeybloom/library/aether";
+const DB_PATH = path.join(DB_DIR, "aether.db");
 
 interface StoredMessage {
 	id: string;
@@ -396,8 +396,8 @@ export function deleteBookmark(id: string): void {
 	db.prepare("DELETE FROM bookmarks WHERE id = ?").run(id);
 }
 
-const KEYCHAIN_SERVICE = "facade-notebook-key";
-const KEYCHAIN_ACCOUNT = "facade";
+const KEYCHAIN_SERVICE = "aether-notebook-key";
+const KEYCHAIN_ACCOUNT = "aether";
 
 function getEncryptionKey(): Buffer | null {
 	try {

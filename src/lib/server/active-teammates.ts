@@ -1,6 +1,6 @@
 import fs from "fs";
 
-const ACTIVE_FILE = "/tmp/facade-active-teammates.json";
+const ACTIVE_FILE = "/tmp/aether-active-teammates.json";
 
 interface ActiveState {
 	[teammate: string]: {

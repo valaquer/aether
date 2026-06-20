@@ -7,7 +7,7 @@ import { readdirSync, readFileSync } from "fs";
 
 const execFileAsync = promisify(execFile);
 const LAUNCH_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/kitty-open-teammate.sh";
-const STATE_DIR = "/Users/deepak-macmini/honeybloom/library/facade/reminders-state";
+const STATE_DIR = "/Users/deepak-macmini/honeybloom/library/aether/reminders-state";
 
 export const POST: RequestHandler = async ({ request }) => {
 	const { teammate, reason } = await request.json();

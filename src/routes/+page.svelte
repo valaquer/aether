@@ -268,23 +268,23 @@
 
 	function saveRewindPosition(room: string, messageId: string) {
 		try {
-			const positions = JSON.parse(localStorage.getItem('facade-rewind-positions') ?? '{}');
+			const positions = JSON.parse(localStorage.getItem('aether-rewind-positions') ?? '{}');
 			positions[room] = messageId;
-			localStorage.setItem('facade-rewind-positions', JSON.stringify(positions));
+			localStorage.setItem('aether-rewind-positions', JSON.stringify(positions));
 		} catch {}
 	}
 
 	function clearRewindPosition(room: string) {
 		try {
-			const positions = JSON.parse(localStorage.getItem('facade-rewind-positions') ?? '{}');
+			const positions = JSON.parse(localStorage.getItem('aether-rewind-positions') ?? '{}');
 			delete positions[room];
-			localStorage.setItem('facade-rewind-positions', JSON.stringify(positions));
+			localStorage.setItem('aether-rewind-positions', JSON.stringify(positions));
 		} catch {}
 	}
 
 	function restoreRewindPosition(room: string, messages: ChatMsg[]): number | null {
 		try {
-			const positions = JSON.parse(localStorage.getItem('facade-rewind-positions') ?? '{}');
+			const positions = JSON.parse(localStorage.getItem('aether-rewind-positions') ?? '{}');
 			const storedId = positions[room];
 			if (!storedId) return null;
 			const idx = messages.findIndex(m => m.id === storedId);
@@ -466,8 +466,8 @@
 		}
 		userScrolledUp = false;
 		if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; }
-		localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds));
-		if (convId?.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('facade-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('facade-paused-room'); }
+		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
+		if (convId?.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
 	}
 
 	async function rekindleZombies() {
@@ -511,7 +511,7 @@
 		const convId = selectedConvId;
 		const queue = convId ? (messageQueues[convId] ?? []) : [];
 		const roomIds = convId ? (queuedMessageIds[convId] ?? []) : [];
-		if (queue.length === 0) { if (currentRoomKind !== "huddle") { pausedRoom = null; localStorage.removeItem('facade-paused-room'); } if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; } localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds)); return; }
+		if (queue.length === 0) { if (currentRoomKind !== "huddle") { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; } localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds)); return; }
 		const batch: ChatMsg[] = [];
 		let remaining = [...queue];
 		while (remaining.length > 0) {
@@ -523,7 +523,7 @@
 		messageQueues = messageQueues;
 		const batchIds = new Set(batch.map(m => m.id));
 		if (convId) { queuedMessageIds[convId] = roomIds.filter(id => !batchIds.has(id)); queuedMessageIds = queuedMessageIds; }
-		localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds));
+		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 		if (convId && batch.length > 0) {
 			const lastReal = batch.findLast(m => !m.response);
 			conversations[convId] = [...(conversations[convId] ?? []), ...batch];
@@ -536,9 +536,9 @@
 			}, 50);
 		}
 		if (remaining.length === 0) {
-			if (currentRoomKind !== "huddle") { pausedRoom = null; localStorage.removeItem('facade-paused-room'); }
+			if (currentRoomKind !== "huddle") { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
 			if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; }
-			localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds));
+			localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 		}
 	}
 
@@ -564,10 +564,10 @@
 		const roomIds = queuedMessageIds[convId] ?? [];
 		queuedMessageIds[convId] = [...batchIds, ...roomIds];
 		queuedMessageIds = queuedMessageIds;
-		localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds));
+		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 		if (!isCurrentRoomPaused) {
-			if (convId.startsWith("huddle-")) { stoppedHuddles.delete(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('facade-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
-			else { pausedRoom = convId; localStorage.setItem('facade-paused-room', convId); }
+			if (convId.startsWith("huddle-")) { stoppedHuddles.delete(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
+			else { pausedRoom = convId; localStorage.setItem('aether-paused-room', convId); }
 		}
 		setTimeout(() => {
 			if (messagesContainer && remaining.length > 0) {
@@ -586,7 +586,7 @@
 		resizeInput();
 		flushQueue();
 		if (rewindIndex !== null) { rewindIndex = null; clearRewindPosition(selectedConvId); }
-		if (currentRoomKind === "huddle") { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('facade-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
+		if (currentRoomKind === "huddle") { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
 
 		try {
 			const res = await fetch("/api/message", {
@@ -638,7 +638,7 @@
 					messageQueues = messageQueues;
 					queuedMessageIds[convId] = [...(queuedMessageIds[convId] ?? []), msg.id];
 					queuedMessageIds = queuedMessageIds;
-					localStorage.setItem('facade-queued-ids', JSON.stringify(queuedMessageIds));
+					localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 				} else {
 					conversations[convId] = [...(conversations[convId] ?? []), msg];
 					conversations = conversations;
@@ -701,8 +701,8 @@
 	}
 
 	onMount(() => {
-		try { const sh = localStorage.getItem('facade-stopped-huddles'); if (sh) stoppedHuddles = new Set(JSON.parse(sh)); } catch {}
-		const savedIds = localStorage.getItem('facade-queued-ids');
+		try { const sh = localStorage.getItem('aether-stopped-huddles'); if (sh) stoppedHuddles = new Set(JSON.parse(sh)); } catch {}
+		const savedIds = localStorage.getItem('aether-queued-ids');
 		if (savedIds) { try { const parsed = JSON.parse(savedIds); if (Array.isArray(parsed)) { queuedMessageIds = {}; } else { queuedMessageIds = parsed; } } catch {} }
 		loadSidebar();
 		loadBookmarks();
@@ -1233,7 +1233,7 @@
 				<button class="control-btn" onclick={() => { if (rewindIndex !== null) { if (rewindIndex > 0) { rewindIndex--; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } } else { rewindIndex = Math.max(0, chatMessages.length - 2); saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } }} title="Rewind">
 						<LucideRewind width={14} height={14} style="color: {isCurrentRoomPaused ? '#7a5e4a' : '#555'};" />
 				</button>
-				<button class="control-btn" onclick={() => { if (!isCurrentRoomPaused) { if (selectedConvId.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('facade-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('facade-paused-room', selectedConvId); } } else { stepOne(); } }} title={isCurrentRoomPaused ? "Forward" : "Pause"}>
+				<button class="control-btn" onclick={() => { if (!isCurrentRoomPaused) { if (selectedConvId.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } else { stepOne(); } }} title={isCurrentRoomPaused ? "Forward" : "Pause"}>
 						<LucideFastForward width={14} height={14} style="color: {isCurrentRoomPaused ? '#7a5e4a' : '#555'};" />
 					{#if true}
 						{@const queueCount = (messageQueues[selectedConvId] ?? []).filter(m => !m.response).length}
@@ -1297,7 +1297,7 @@
 									placeholder=""
 									style="color: var(--color-text); font-family: var(--font-mono); font-size: 12px; font-weight: 300; border: none; max-height: 200px; overflow: hidden;"
 								></textarea>
-								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">X8N</span></div>
+								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">J2A</span></div>
 							</div>
 						</div>
 					</form>

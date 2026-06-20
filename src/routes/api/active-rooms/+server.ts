@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { getActiveRoomsForTeammate } from "$lib/server/facade-db";
+import { getActiveRoomsForTeammate } from "$lib/server/aether-db";
 
 export const GET: RequestHandler = ({ url }) => {
 	const teammate = url.searchParams.get("teammate");

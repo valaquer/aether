@@ -4,7 +4,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { writeFileSync } from "fs";
 
-const FACADE_URL = process.env.FACADE_URL || "http://localhost:51730";
+const AETHER_URL = process.env.AETHER_URL || "http://localhost:51730";
 
 const server = new Server(
 	{ name: "Huddle MCP", version: "0.1.0" },
@@ -106,7 +106,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 async function callFacade(action, body) {
 	try {
-		const res = await fetch(`${FACADE_URL}/api/huddle`, {
+		const res = await fetch(`${AETHER_URL}/api/huddle`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ action, ...body }),
@@ -117,13 +117,13 @@ async function callFacade(action, body) {
 		}
 		return JSON.stringify(await res.json());
 	} catch (err) {
-		return `Error: Facade is not responding at ${FACADE_URL}`;
+		return `Error: Facade is not responding at ${AETHER_URL}`;
 	}
 }
 
 async function callFacadeToken(action, body) {
 	try {
-		const res = await fetch(`${FACADE_URL}/api/huddle`, {
+		const res = await fetch(`${AETHER_URL}/api/huddle`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ action, ...body }),
@@ -135,7 +135,7 @@ async function callFacadeToken(action, body) {
 		const data = await res.json();
 		return data.result;
 	} catch (err) {
-		return `Error: Facade is not responding at ${FACADE_URL}`;
+		return `Error: Facade is not responding at ${AETHER_URL}`;
 	}
 }
 
@@ -188,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 		case "read_room": {
 			try {
 				const params = new URLSearchParams({ roomId: args.roomId });
-				const res = await fetch(`${FACADE_URL}/api/huddle-history?${params}`);
+				const res = await fetch(`${AETHER_URL}/api/huddle-history?${params}`);
 				if (!res.ok) {
 					const text = await res.text();
 					try {
@@ -217,7 +217,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				};
 			} catch (err) {
 				return {
-					content: [{ type: "text", text: `Error: Facade is not responding at ${FACADE_URL}` }],
+					content: [{ type: "text", text: `Error: Facade is not responding at ${AETHER_URL}` }],
 				};
 			}
 		}

@@ -12,16 +12,16 @@ export interface FacadeEvent {
 	summary?: string;
 }
 
-globalThis.__facadeEmitter ??= new EventEmitter();
-globalThis.__facadeEmitter.setMaxListeners(100);
+globalThis.__aetherEmitter ??= new EventEmitter();
+globalThis.__aetherEmitter.setMaxListeners(100);
 
 export function emitEvent(event: FacadeEvent): void {
-	globalThis.__facadeEmitter.emit("facade-event", event);
+	globalThis.__aetherEmitter.emit("aether-event", event);
 }
 
 export function onEvent(listener: (event: FacadeEvent) => void): () => void {
-	globalThis.__facadeEmitter.on("facade-event", listener);
+	globalThis.__aetherEmitter.on("aether-event", listener);
 	return () => {
-		globalThis.__facadeEmitter.off("facade-event", listener);
+		globalThis.__aetherEmitter.off("aether-event", listener);
 	};
 }

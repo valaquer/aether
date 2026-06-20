@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getRoomsByType, getAllRooms, getHuddleMembers } from "$lib/server/facade-db";
+import { getRoomsByType, getAllRooms, getHuddleMembers } from "$lib/server/aether-db";
 import { getAliveTeammates } from "$lib/server/kitten";
 import fs from "fs";
 

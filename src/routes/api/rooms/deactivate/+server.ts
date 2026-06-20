@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { resolveActiveRoom, setRoomType } from "$lib/server/facade-db";
+import { resolveActiveRoom, setRoomType } from "$lib/server/aether-db";
 import { deactivateTeammate } from "$lib/server/active-teammates";
 import { emitEvent } from "$lib/server/events";
 import { isTabAlive, closeKittyTab } from "$lib/server/kitten";

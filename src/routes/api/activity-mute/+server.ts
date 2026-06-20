@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import { readFileSync, watch, existsSync } from "fs";
 import { emitEvent } from "$lib/server/events";
 
-const ACTIVITY_MUTE_FILE = "/Users/deepak-macmini/honeybloom/library/facade/activity-mute.md";
+const ACTIVITY_MUTE_FILE = "/Users/deepak-macmini/honeybloom/library/aether/activity-mute.md";
 
 if (globalThis.__muteWatcher) globalThis.__muteWatcher.close();
 if (existsSync(ACTIVITY_MUTE_FILE)) {
