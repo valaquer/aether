@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	/* OpenCode "opencode" theme - dark mode palette */
+	--color-bg: #0b0d10;
+	--color-bg-panel: #0e1114;
+	--color-bg-element: #1e1e1e;
+	--color-bg-step4: #282a30;
+	--color-bg-step5: #323232;
+	--color-bg-step6: #3c3c3c;
+	--color-border: #484848;
+	--color-border-active: #606080;
+
+	--color-primary: #fab283;
+	--color-secondary: #5c9cf5;
+	--color-accent: #9d7cd8;
+
+	--color-text: #CDCCC2;
+	--color-text-muted: #808080;
+
+	--color-error: #e06c75;
+	--color-warning: #f5a742;
+	--color-success: #7fd88f;
+	--color-info: #56b6c2;
+
+	--color-syntax-keyword: #9d7cd8;
+	--color-syntax-function: #fab283;
+	--color-syntax-string: #7fd88f;
+	--color-syntax-number: #f5a742;
+	--color-syntax-type: #e5c07b;
+	--color-syntax-operator: #56b6c2;
+
+	--color-diff-added: #4fd6be;
+	--color-diff-removed: #c53b53;
+	--color-diff-added-bg: #20303b;
+	--color-diff-removed-bg: #37222c;
+	--color-diff-highlight-added: #b8db87;
+	--color-diff-highlight-removed: #e26a75;
+	--color-diff-line-number: #8f8f8f;
+	--color-diff-added-ln-bg: #1b2b34;
+	--color-diff-removed-ln-bg: #2d1f26;
+
+	/* Kitty-matching accent */
+	--color-kitty-accent: #5b8fa8;
+
+	--font-sans: 'Inter', sans-serif;
+	--font-mono: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
+
+	--gradient-accent: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+}
+
+html, body {
+	margin: 0;
+	padding: 0;
+	background: #0b0d10;
+	color: var(--color-text);
+	font-family: var(--font-mono);
+	font-size: 12px;
+	line-height: 1.8;
+	font-weight: 300;
+	height: 100%;
+}
+
+/* Markdown rendering — Obsidian dark theme match */
+.md-content {
+	overflow-wrap: break-word;
+}
+.md-content h2 {
+	font-size: 1.4em;
+	font-weight: 700;
+	margin: 1.2em 0 0.4em 0;
+	padding-bottom: 0.3em;
+	border-bottom: 1px solid var(--color-bg-step5);
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content h2:first-child {
+	margin-top: 0;
+}
+
+.md-content h3 {
+	font-size: 1.1em;
+	font-weight: 600;
+	margin: 1em 0 0.3em 0;
+	padding-bottom: 0.2em;
+	border-bottom: 1px solid var(--color-bg-step4);
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content h4 {
+	font-size: 1em;
+	font-weight: 600;
+	color: var(--color-text);
+	margin: 0.8em 0 0.2em 0;
+}
+
+.md-content p {
+	margin: 1.2em 0;
+}
+
+.md-content > *:first-child {
+	margin-top: 0;
+}
+
+.md-content strong {
+	font-weight: 500;
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content code {
+	font-family: var(--font-mono);
+	font-size: 0.95em;
+	color: #56b6c2;
+	background: #1a1e2e;
+	padding: 0.1em 0.35em;
+	border-radius: 3px;
+}
+.md-content strong code,
+.md-content em code {
+	-webkit-text-fill-color: #56b6c2;
+	background-clip: padding-box;
+}
+
+.md-content pre {
+	background: var(--color-bg-panel);
+	padding: 0.75em 1em;
+	border-radius: 4px;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	margin: 0.5em 0;
+	position: relative;
+}
+
+.md-content pre:first-child {
+	margin-top: 0;
+	padding-top: 0;
+}
+
+.md-content pre code {
+	background: none;
+	padding: 0;
+	color: var(--color-text);
+}
+
+.md-content pre .copy-btn {
+	position: absolute;
+	top: 0.4em;
+	right: 0.5em;
+	background: var(--color-bg-element);
+	color: var(--color-text-muted);
+	border: 1px solid var(--color-bg-step5);
+	border-radius: 3px;
+	padding: 0.15em 0.5em;
+	font-size: 10px;
+	font-family: var(--font-mono);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+
+.md-content pre:hover .copy-btn {
+	opacity: 1;
+}
+
+.md-content ul {
+	margin: 0.3em 0;
+	padding-left: 1.5em;
+	list-style: disc;
+}
+
+.md-content li::marker {
+	color: #7c8cf0;
+}
+
+.md-content ul ul {
+	list-style: circle;
+}
+
+.md-content ol {
+	margin: 0.3em 0;
+	padding-left: 2em;
+	list-style: decimal;
+}
+
+.md-content li {
+	margin: 0.15em 0;
+}
+
+.md-content li:has(> input[type="checkbox"]) {
+	list-style: none;
+}
+
+.md-content input[type="checkbox"] {
+	appearance: none;
+	width: 14px;
+	height: 14px;
+	border: 1.5px solid #a8a89e;
+	border-radius: 2px;
+	background-color: #a8a89e;
+	vertical-align: middle;
+	margin-right: 6px;
+	cursor: default;
+}
+
+.md-content input[type="checkbox"]:checked {
+	background-color: #568203;
+	border-color: #568203;
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 7l3 3 5-5' stroke='%23CDCCC2' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-size: 100%;
+}
+
+.md-content a {
+	background: linear-gradient(90deg, #f5a742, #8b5e3c);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+	text-decoration: underline;
+	text-decoration-color: #c07830;
+}
+
+.md-content em {
+	font-style: italic;
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content blockquote {
+	border-left: 2px solid #7c8cf0;
+	border-image: linear-gradient(180deg, #5c9cf5, #9d7cd8) 1;
+	padding-left: 4rem;
+	margin: 4rem 4rem;
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content hr {
+	border: none;
+	height: 1px;
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	margin: 1em 0;
+}
+
+.md-content table {
+	border-collapse: collapse;
+	margin: 0.5em 0;
+	width: 100%;
+	font-size: 10px;
+}
+
+.md-content th {
+	text-align: left;
+	padding: 0.3em 0.75em;
+	border-bottom: 1px solid var(--color-border);
+	font-weight: 500;
+	background: linear-gradient(90deg, #5c9cf5, #9d7cd8);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	background-clip: text;
+}
+
+.md-content td {
+	padding: 0.25em 0.75em;
+	border-bottom: 1px solid var(--color-bg-step4);
+}
