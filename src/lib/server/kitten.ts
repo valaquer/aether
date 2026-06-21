@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 const KITTEN = "/opt/homebrew/bin/kitten";
 
 // Kitty runs on iMac — all kitten commands go through SSH when Aether is on Mini
-const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.155";
+const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.153";
 const IS_MINI = os.hostname().includes("Mini");
 
 function runKittenCmd(args: string[], timeout = 5000): Promise<{ stdout: string; stderr: string }> {
@@ -225,10 +225,10 @@ export async function closeKittyTab(teammate: string): Promise<boolean> {
 	}
 }
 
-const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/raycast/kitty-open-teammate.sh";
+const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/raycast-scripts/kitty-open-teammate.sh";
 const SSH_KEY = "/Users/deepak-macmini/.ssh/id_mini";
 const IMAC_USER = "d.patnaik";
-const IMAC_HOST = "192.168.0.155";
+const IMAC_HOST = "192.168.0.153";
 
 export async function launchTeammate(name: string): Promise<boolean> {
 	try {

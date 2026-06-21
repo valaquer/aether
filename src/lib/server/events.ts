@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 
 export interface AetherEvent {
-	type: "message" | "huddle_update" | "mute_update";
+	type: "message" | "huddle_update";
 	id?: string;
 	conversationId?: string;
 	sender?: string;

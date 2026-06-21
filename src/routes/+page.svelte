@@ -4,11 +4,9 @@
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucideFastForward from '~icons/lucide/fast-forward';
 	import LucideRadio from '~icons/lucide/radio';
-	import LucideVolumeX from '~icons/lucide/volume-x';
 	import LucideMaximize2 from '~icons/lucide/maximize-2';
 	import LucideMinimize2 from '~icons/lucide/minimize-2';
 	import LucideX from '~icons/lucide/x';
-	import LucideEarOff from '~icons/lucide/ear-off';
 	import LucideFiles from '~icons/lucide/files';
 	import LucideBookmark from '~icons/lucide/bookmark';
 	import LucideArchive from '~icons/lucide/archive';
@@ -17,7 +15,6 @@
 	import LucideMilestone from '~icons/lucide/milestone';
 	import LucideConstruction from '~icons/lucide/construction';
 	import LucidePower from '~icons/lucide/power';
-	import LucideFlame from '~icons/lucide/flame';
 
 	marked.setOptions({ breaks: true, gfm: true });
 
@@ -218,7 +215,7 @@
 		});
 	});
 
-	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number };
+	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; startedAt?: string };
 	type ChatMsg = { id: string; sender: string; content: string; createdAt: string; toolCall?: boolean; response?: boolean; summary?: string };
 	type Bookmark = { id: string; messageId: string; roomId: string; name: string; createdAt: string };
 	type NavItem =
@@ -256,8 +253,6 @@
 	let eventSource: EventSource | undefined;
 	let messagesContainer: HTMLElement | undefined = $state();
 	let liveMirrorActive = $state(false);
-	let mutedEntries = $state<{sender: string, room: string}[]>([]);
-	let deafEntries = $state<{recipient: string, room: string}[]>([]);
 	let pausedRoom = $state<string | null>(null);
 	let stoppedHuddles = $state<Set<string>>(new Set());
 	let sidebarLoaded = $state(false);
@@ -294,45 +289,18 @@
 	let queuedMessageIds = $state<Record<string, string[]>>({});
 	let messageQueues = $state<Record<string, ChatMsg[]>>({});
 	let pausing = $state(false);
+	let pastSearchQuery = $state("");
 	let pauseError = $state(false);
 	let userScrolledUp = $state(false);
 	let loadingRoom = $state("");
 	let broadcastedMsgId = $state<string | null>(null);
 	let pulsingTeammates = $state<string[]>([]);
 	let activeAccount = $state("?");
-	let amberCount = $state(0);
-	let rekindling = $state(false);
-	async function fetchAmberCount() {
-		try {
-			const r = await fetch("/api/rekindle");
-			if (r.ok) { const d = await r.json(); amberCount = d.amberCount ?? 0; }
-		} catch {}
-	}
-	async function rekindleAll() {
-		if (rekindling) return;
-		rekindling = true;
-		try {
-			await fetch("/api/rekindle", { method: "POST" });
-			await fetchAmberCount();
-		} catch {} finally {
-			rekindling = false;
-		}
-	}
 	async function fetchActiveAccount() {
 		try {
 			const r = await fetch("/api/account-switch");
 			if (r.ok) { const d = await r.json(); activeAccount = d.account === "oovar" ? "O" : d.account === "gmail" ? "G" : "?"; }
 		} catch {}
-	}
-	function isMutedInRoom(participant: string, roomId: string): boolean {
-		const p = participant.toLowerCase();
-		const r = roomId.toLowerCase();
-		return mutedEntries.some(e => p === e.sender && r.startsWith(e.room));
-	}
-	function isDeafInRoom(participant: string, roomId: string): boolean {
-		const p = participant.toLowerCase();
-		const r = roomId.toLowerCase();
-		return deafEntries.some(e => p === e.recipient && r.startsWith(e.room));
 	}
 	// Nav model: unified navItems array in visual order with section headers as navigable items
 	let navItems = $derived.by(() => {
@@ -351,18 +319,18 @@
 				items.push({ type: "bookmark", bm });
 			}
 		}
-		const now = Date.now();
-		const oneDayAgo = now - 24 * 60 * 60 * 1000;
+		const query = pastSearchQuery.trim().toLowerCase();
 		const pastItems = sidebarItems.filter(x => {
 			if (x.kind !== "past") return false;
-			const tsMatch = x.id.match(/-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/);
-			if (!tsMatch) return true;
-			const [, y, mo, d, h, mi, s] = tsMatch;
-			const roomTime = new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}`).getTime();
-			return roomTime >= oneDayAgo;
+			if (query && !x.id.toLowerCase().includes(query)) return false;
+			return true;
+		}).sort((a, b) => {
+			const timeA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+			const timeB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+			return timeB - timeA;
 		});
-		if (pastItems.length > 0) {
-			items.push({ type: "header", section: "Past Rooms" });
+		items.push({ type: "header", section: "Past Rooms" });
+		if (query) {
 			for (const item of pastItems) {
 				items.push({ type: "past", item });
 			}
@@ -423,7 +391,7 @@
 			const prefs = isInitialLoad ? await responses[1].json() : null;
 			const teammates = (data.teammates ?? []).map((t: { id: string; name: string; model: string; online: boolean; group?: string; groupIdx?: number }) => ({ id: t.id, name: t.name, model: t.model || "", kind: "teammate" as const, online: t.online, group: t.group || "", groupIdx: t.groupIdx ?? 0 }));
 			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; participants: string[] }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants }));
-			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name, kind: "past" as const }));
+			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string; startedAt?: string }) => ({ id: p.id, name: p.name, kind: "past" as const, startedAt: p.startedAt }));
 
 			const items = [...teammates, ...currentHuddles, ...pastItems];
 			sidebarItems = items;
@@ -581,10 +549,6 @@
 			const data = JSON.parse(event.data);
 			if (data.type === "livemirror_status") {
 				liveMirrorActive = data.active;
-			} else if (data.type === "mute_update") {
-				fetch(`/api/activity-mute?t=${Date.now()}`).then(r => r.json()).then(d => { mutedEntries = d; }).catch(() => {});
-			} else if (data.type === "deaf_update") {
-				fetch(`/api/activity-deaf?t=${Date.now()}`).then(r => r.json()).then(d => { deafEntries = d; }).catch(() => {});
 			} else if (data.type === "pulse_update") {
 				if (data.teammate && !pulsingTeammates.includes(data.teammate)) {
 					pulsingTeammates = [...pulsingTeammates, data.teammate];
@@ -654,11 +618,8 @@
 		Promise.all([
 			loadSidebar(),
 			fetch("/api/livemirror-status").then(r => r.json()).then(d => { liveMirrorActive = d.active; }).catch(() => {}),
-			fetch("/api/activity-mute").then(r => r.json()).then(d => { mutedEntries = d; }).catch(() => {}),
-			fetch("/api/activity-deaf").then(r => r.json()).then(d => { deafEntries = d; }).catch(() => {}),
 			fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {}),
 			fetchActiveAccount(),
-			fetchAmberCount(),
 		]).then(() => {
 			// Force room-switch $effect to re-run and load messages
 			prevRoom = "";
@@ -681,11 +642,8 @@
 		loadBookmarks();
 		resizeInput();
 		fetch("/api/livemirror-status").then(r => r.json()).then(d => { liveMirrorActive = d.active; }).catch(() => {});
-		fetch("/api/activity-mute").then(r => r.json()).then(d => { mutedEntries = d; }).catch(() => {});
-		fetch("/api/activity-deaf").then(r => r.json()).then(d => { deafEntries = d; }).catch(() => {});
 		fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {});
 		fetchActiveAccount();
-		fetchAmberCount();
 		connectEventSource();
 		pulsePoller = setInterval(() => {
 			fetch("/api/pulse").then(r => r.json()).then(d => {
@@ -693,7 +651,7 @@
 				if (pending.length > 0) { pulsingTeammates = [...new Set([...pulsingTeammates, ...pending])]; }
 			}).catch(() => {});
 		}, 60000);
-		sidebarPoller = setInterval(() => { loadSidebar(); fetchAmberCount(); }, 5000);
+		sidebarPoller = setInterval(() => { loadSidebar(); }, 5000);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	});
 
@@ -1118,6 +1076,16 @@
 						style="padding: 1rem 1rem 1rem 1.5rem; cursor: pointer; {nav.section !== 'Teammates' ? '' : 'border-top: 1px dashed var(--color-bg-step4);'} border-bottom: 1px dashed var(--color-bg-step4); background: {selectedIndex === i ? 'var(--color-bg-element)' : 'transparent'};"
 					>
 						<p style="display: inline-block; font-size: 13px; font-weight: 500; font-family: var(--font-sans); background: var(--gradient-accent); background-repeat: no-repeat; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">{nav.section}</p>
+						{#if nav.section === "Past Rooms"}
+							<input
+								type="text"
+								bind:value={pastSearchQuery}
+								placeholder="Search..."
+								onclick={(e) => e.stopPropagation()}
+								onkeydown={(e) => { if (e.key === 'Escape') { pastSearchQuery = ''; e.currentTarget.blur(); } }}
+								style="display: block; margin-top: 6px; width: 100%; background: var(--color-bg-surface); border: 1px dashed var(--color-bg-step4); border-radius: 4px; padding: 4px 8px; font-size: 11px; font-family: var(--font-sans); color: var(--color-text); outline: none;"
+							/>
+						{/if}
 					</div>
 				{:else if nav.type === "teammate"}
 					{@const item = nav.item}
@@ -1128,7 +1096,7 @@
 						onclick={() => { if (pulsingTeammates.includes(fmt.label)) { pulsingTeammates = pulsingTeammates.filter(n => n !== fmt.label); fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: fmt.label }) }).catch(() => {}); } selectedIndex = i; }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
-						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online ? '#4ade80' : (!item.id.startsWith('offline-') ? '#f59e0b' : '#555')}; {item.online ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : (!item.id.startsWith('offline-') ? 'box-shadow: 0 0 4px #f59e0b, 0 0 8px #f59e0b66;' : '')}"></span><span style="{item.online ? '' : (!item.id.startsWith('offline-') ? '' : 'color: #555; opacity: 0.35;')}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
+						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online ? '#4ade80' : '#555'}; {item.online ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
 						{#if item.online}<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1147,7 +1115,7 @@
 					>
 						<div>{isMainHuddle ? "Main huddle" : fmt.label} &nbsp;{#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
-							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{#if isMutedInRoom(p, item.id) || isDeafInRoom(p, item.id)}{#if isMutedInRoom(p, item.id)}<LucideVolumeX width={9} height={9} style="color: #7a5e4a; display: inline; vertical-align: baseline;" />&nbsp;{/if}{#if isDeafInRoom(p, item.id)}<LucideEarOff width={9} height={9} style="color: #7a5e4a; display: inline; vertical-align: baseline;" />&nbsp;{/if}<span style="color: #7a5e4a;">{p}</span>{:else}{p}{/if}{/each}</div>
+							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
 						<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1255,9 +1223,6 @@
 				<span class="control-btn" title="Active account: {activeAccount === 'G' ? 'Gmail' : activeAccount === 'O' ? 'Oovar' : 'Unknown'}">
 					<span style="font-family: var(--font-sans); font-size: 14px; color: #555;">{activeAccount}</span>
 				</span>
-				<button class="control-btn" onclick={rekindleAll} disabled={rekindling || amberCount === 0} title="Rekindle — bring back disconnected teammates">
-					<LucideFlame width={14} height={14} style="color: {amberCount > 0 ? '#f59e0b' : '#555'};" />
-				</button>
 				<button class="control-btn" onclick={() => focusMode = !focusMode} title={focusMode ? "Exit focus mode" : "Focus mode"}>
 						{#if focusMode}
 							<LucideMinimize2 width={14} height={14} style="color: #7a5e4a;" />

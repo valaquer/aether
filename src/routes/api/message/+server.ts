@@ -17,7 +17,7 @@ import {
 	clearTokenTimer,
 	forceAssignTokenAndNotify,
 } from "$lib/server/token-helpers";
-import { isActivityDeaf } from "$lib/server/harness-reader";
+
 import { v4 } from "uuid";
 import fs from "fs";
 
@@ -197,7 +197,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (resolvedRoom.startsWith("huddle-")) {
 		const members = getHuddleMembers(resolvedRoom);
 		for (const m of members) {
-			if (m !== sender && !isActivityDeaf(m, resolvedRoom)) {
+			if (m !== sender) {
 				sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {});
 			}
 		}

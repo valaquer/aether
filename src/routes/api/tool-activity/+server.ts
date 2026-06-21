@@ -1,7 +1,7 @@
 import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
 import { saveMessage, getHuddleMembers, getActiveRoomsForTeammate } from "$lib/server/aether-db";
-import { isActivityMuted, isActivityDeaf } from "$lib/server/harness-reader";
+
 import { sendToKitty } from "$lib/server/kitten";
 import { v4 } from "uuid";
 
@@ -50,7 +50,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	const toolCallFlag = isToolCall;
 
 	for (const targetRoom of activeRooms) {
-		if ((isToolCall || isResponse) && isActivityMuted(sender, targetRoom)) continue;
 		const id = v4();
 		saveMessage({
 			id,
@@ -80,7 +79,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				: body;
 			const members = getHuddleMembers(targetRoom);
 			for (const m of members) {
-				if (m !== sender && !isActivityDeaf(m, targetRoom)) {
+				if (m !== sender) {
 					sendToKitty(m, {
 						sender: "system",
 						room: targetRoom,

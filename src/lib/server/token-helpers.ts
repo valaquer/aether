@@ -1,6 +1,5 @@
 import { releaseToken, clearAllTokens, getTokenHolder, forceAssignToken } from "./aether-db";
 import { sendToKitty } from "./kitten";
-import { isActivityDeaf } from "./harness-reader";
 
 const tokenTimers = new Map<string, NodeJS.Timeout>();
 
@@ -12,14 +11,12 @@ export function advanceTokenAndNotify(roomId: string, releasedBy: string): strin
 	const now = new Date().toISOString();
 
 	// Only the recipient is notified — observers don't need to know (REQ-147)
-	if (!isActivityDeaf(next, roomId)) {
-		sendToKitty(next, {
-			sender: "system",
-			room: roomId,
-			body: "You have the token. Read before posting — don't repeat what is already said.",
-			timestamp: now,
-		}).catch(() => {});
-	}
+	sendToKitty(next, {
+		sender: "system",
+		room: roomId,
+		body: "You have the token. Read before posting — don't repeat what is already said.",
+		timestamp: now,
+	}).catch(() => {});
 
 	return next;
 }
@@ -50,14 +47,12 @@ export function forceAssignTokenAndNotify(roomId: string, targetName: string): v
 	const now = new Date().toISOString();
 
 	// Only the recipient is notified (REQ-147)
-	if (!isActivityDeaf(targetName, roomId)) {
-		sendToKitty(targetName, {
-			sender: "system",
-			room: roomId,
-			body: "You have the token. Read before posting — don't repeat what is already said.",
-			timestamp: now,
-		}).catch(() => {});
-	}
+	sendToKitty(targetName, {
+		sender: "system",
+		room: roomId,
+		body: "You have the token. Read before posting — don't repeat what is already said.",
+		timestamp: now,
+	}).catch(() => {});
 }
 
 export function clearTokenTimer(roomId: string): void {
