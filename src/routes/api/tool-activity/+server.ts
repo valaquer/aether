@@ -19,6 +19,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
+
+
 	if (isToolCall && !room) {
 		return new Response(JSON.stringify({ error: "Missing room for tool call" }), {
 			status: 400,
