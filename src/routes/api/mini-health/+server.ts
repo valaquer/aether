@@ -1,17 +1,18 @@
 import type { RequestHandler } from "./$types";
 import { execSync } from "child_process";
 
-const LOAD_THRESHOLD = 4;
-const FREE_GB_THRESHOLD = 1;
+const LOAD_THRESHOLD = 10;
+const FREE_GB_THRESHOLD = 0.5;
+const SSH_CMD = 'ssh -i /Users/deepak-macmini/.ssh/id_hanover -o ConnectTimeout=3 -o StrictHostKeyChecking=no deepak-macmini@192.168.0.186 "sysctl -n vm.loadavg; vm_stat"';
 
 export const GET: RequestHandler = async () => {
 	try {
-		const loadStr = execSync("sysctl -n vm.loadavg", { timeout: 3000, encoding: "utf-8" });
-		const loadMatch = loadStr.match(/\{\s*([\d.]+)/);
+		const output = execSync(SSH_CMD, { timeout: 5000, encoding: "utf-8" });
+
+		const loadMatch = output.match(/\{\s*([\d.]+)/);
 		const load = loadMatch ? parseFloat(loadMatch[1]) : 0;
 
-		const vmStr = execSync("vm_stat", { timeout: 3000, encoding: "utf-8" });
-		const freeMatch = vmStr.match(/Pages free:\s+(\d+)/);
+		const freeMatch = output.match(/Pages free:\s+(\d+)/);
 		const pageSize = 16384;
 		const freePages = freeMatch ? parseInt(freeMatch[1]) : 0;
 		const freeGB = (freePages * pageSize) / (1024 * 1024 * 1024);
