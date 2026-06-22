@@ -54,6 +54,50 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const existingRoomId = resolveActiveRoom(`huddle-${host}`);
 		if (existingRoomId) {
+			const currentMembers = getHuddleMembers(existingRoomId).filter((m: string) => m !== "boss");
+			const missing = allMembers.filter((m) => !currentMembers.includes(m));
+			if (missing.length > 0) {
+				const updated = [...new Set([...currentMembers, ...missing])];
+				const existingRoom = getRoom(existingRoomId);
+				if (existingRoom) {
+					saveRoom({
+						id: existingRoomId,
+						type: "huddle",
+						name: existingRoom.name,
+						participants: updated,
+						originalRoomId: `huddle-${existingRoom.name}`,
+						lastActivity: new Date().toISOString(),
+						startedAt: existingRoom.startedAt,
+					});
+					emitEvent({ type: "huddle_update" });
+					await Promise.all(missing.map((name) => ensureTabOpen(name)));
+					const notification = `${missing.join(", ")} added to huddle ${existingRoomId}.`;
+					const msg = {
+						id: v4(),
+						conversationId: existingRoomId,
+						sender: "system",
+						content: notification,
+						createdAt: new Date().toISOString(),
+						type: "message",
+					};
+					saveMessage(msg);
+					emitEvent({
+						type: "message",
+						conversationId: existingRoomId,
+						sender: "system",
+						content: notification,
+						timestamp: msg.createdAt,
+					});
+					for (const name of updated) {
+						sendToKitty(name, {
+							sender: "system",
+							room: existingRoomId,
+							body: notification,
+							timestamp: msg.createdAt,
+						}).catch(() => {});
+					}
+				}
+			}
 			return new Response(JSON.stringify({ roomId: existingRoomId, existing: true }), {
 				headers: { "Content-Type": "application/json" },
 			});
