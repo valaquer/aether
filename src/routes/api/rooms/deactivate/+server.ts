@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import { resolveActiveRoom, setRoomType } from "$lib/server/aether-db";
 import { deactivateTeammate } from "$lib/server/active-teammates";
 import { emitEvent } from "$lib/server/events";
-import { isTabAlive, closeKittyTab } from "$lib/server/kitten";
+import { isTabAlive, closeKittyTab, killMiniProcess } from "$lib/server/kitten";
 import { removeFromAllHuddles } from "$lib/server/huddle-helpers";
 import { appendFileSync } from "fs";
 
@@ -25,7 +25,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Remove from all active huddles (REQ-248)
 	removeFromAllHuddles(teammate);
 
-	// If the Kitty tab is still alive, close it first (REQ-138)
+	// Kill the Claude process on Mini before closing the Kitty tab
+	const killed = await killMiniProcess(teammate);
+	log(`${teammate} killMiniProcess=${killed}`);
+
+	// If the Kitty tab is still alive, close it (REQ-138)
 	const tabAlive = await isTabAlive(teammate);
 	log(`${teammate} isTabAlive=${tabAlive}`);
 	if (tabAlive) {

@@ -243,3 +243,19 @@ export async function launchTeammate(name: string): Promise<boolean> {
 		return false;
 	}
 }
+
+export async function killMiniProcess(name: string): Promise<boolean> {
+	try {
+		const safeName = name.replace(/[^a-z0-9-]/gi, "");
+		await new Promise<void>((resolve, reject) => {
+			exec(
+				`for pid in $(pgrep -x claude); do if lsof -p $pid 2>/dev/null | grep "honeybloom/${safeName}/" | grep -qv "honeybloom/library"; then kill -9 $pid; fi; done`,
+				{ timeout: 10000 },
+				(err) => { if (err) reject(err); else resolve(); }
+			);
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}

@@ -253,6 +253,7 @@
 	let eventSource: EventSource | undefined;
 	let messagesContainer: HTMLElement | undefined = $state();
 	let liveMirrorActive = $state(false);
+	let miniPressure = $state(false);
 	let pausedRoom = $state<string | null>(null);
 	let stoppedHuddles = $state<Set<string>>(new Set());
 	let sidebarLoaded = $state(false);
@@ -652,6 +653,8 @@
 			}).catch(() => {});
 		}, 60000);
 		sidebarPoller = setInterval(() => { loadSidebar(); }, 5000);
+		fetch("/api/mini-health").then(r => r.json()).then(d => { miniPressure = d.status === "pressure"; }).catch(() => {});
+		miniHealthPoller = setInterval(() => { fetch("/api/mini-health").then(r => r.json()).then(d => { miniPressure = d.status === "pressure"; }).catch(() => {}); }, 30000);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	});
 
@@ -661,6 +664,7 @@
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		if (pulsePoller) clearInterval(pulsePoller);
 		if (sidebarPoller) clearInterval(sidebarPoller);
+		if (miniHealthPoller) clearInterval(miniHealthPoller);
 		if (typeof document !== 'undefined') {
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 		}
@@ -675,6 +679,7 @@
 	}
 	let pulsePoller: ReturnType<typeof setInterval> | undefined;
 	let sidebarPoller: ReturnType<typeof setInterval> | undefined;
+	let miniHealthPoller: ReturnType<typeof setInterval> | undefined;
 
 
 	$effect(() => {
@@ -1203,7 +1208,7 @@
 			<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
 				<div></div>
 				<div class="control-strip">
-					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} title="Live mirror"></span>
+					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} class:cop-car={miniPressure} title={miniPressure ? "Mini under pressure" : "Live mirror"}></span>
 				<button class="control-btn" onclick={() => { if (rewindIndex !== null) { if (rewindIndex > 0) { rewindIndex--; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } } else { rewindIndex = Math.max(0, chatMessages.length - 2); saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } }} title="Rewind">
 						<LucideRewind width={14} height={14} style="color: {isCurrentRoomPaused ? '#7a5e4a' : '#555'};" />
 				</button>
@@ -1503,9 +1508,17 @@
 		animation: led-pulse 1s ease-in-out infinite;
 		box-shadow: none;
 	}
+	.control-led.cop-car {
+		animation: cop-car 0.6s ease-in-out infinite;
+		box-shadow: none;
+	}
 	@keyframes led-pulse {
 		0%, 100% { background: #ff3333; }
 		50% { background: #ffffff; }
+	}
+	@keyframes cop-car {
+		0%, 100% { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+		50% { background: #3b82f6; box-shadow: 0 0 6px #3b82f6; }
 	}
 	.notification-pulse {
 		animation: notification-pulse 1s ease-in-out infinite;
