@@ -311,7 +311,7 @@
 			items.push({ type: "teammate", item });
 		}
 		items.push({ type: "header", section: "Huddles" });
-		for (const item of sidebarItems.filter(x => x.kind === "huddle")) {
+		for (const item of sidebarItems.filter(x => x.kind === "huddle").sort((a, b) => a.id.localeCompare(b.id))) {
 			items.push({ type: "huddle", item });
 		}
 		if (bookmarks.length > 0) {
