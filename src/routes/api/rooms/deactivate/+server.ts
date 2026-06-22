@@ -25,18 +25,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Remove from all active huddles (REQ-248)
 	removeFromAllHuddles(teammate);
 
-	// Kill the Claude process on Mini before closing the Kitty tab
-	const killed = await killMiniProcess(teammate);
-	log(`${teammate} killMiniProcess=${killed}`);
-
-	// If the Kitty tab is still alive, close it (REQ-138)
-	const tabAlive = await isTabAlive(teammate);
-	log(`${teammate} isTabAlive=${tabAlive}`);
-	if (tabAlive) {
-		const closed = await closeKittyTab(teammate);
-		log(`${teammate} closeKittyTab=${closed}`);
-	}
-
 	// Move direct room to Past Rooms
 	const baseRoomId = `direct-${teammate}`;
 	const activeRoomId = resolveActiveRoom(baseRoomId);
@@ -47,6 +35,18 @@ export const POST: RequestHandler = async ({ request }) => {
 	deactivateTeammate(teammate);
 	emitEvent({ type: "huddle_update" });
 	log(`${teammate} deactivated OK`);
+
+	// Kill process + close tab AFTER response sent (2s delay for clean self-kill)
+	setTimeout(async () => {
+		const killed = await killMiniProcess(teammate);
+		log(`${teammate} killMiniProcess=${killed}`);
+		const tabAlive = await isTabAlive(teammate);
+		log(`${teammate} isTabAlive=${tabAlive}`);
+		if (tabAlive) {
+			const closed = await closeKittyTab(teammate);
+			log(`${teammate} closeKittyTab=${closed}`);
+		}
+	}, 2000);
 
 	return new Response(JSON.stringify({ status: "deactivated", name: teammate }), {
 		headers: { "Content-Type": "application/json" },
