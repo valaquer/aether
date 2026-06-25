@@ -396,6 +396,14 @@
 
 			const items = [...teammates, ...currentHuddles, ...pastItems];
 			sidebarItems = items;
+			if (archiveFlashName) {
+				const target = teammates.find((t: any) => t.name === archiveFlashName);
+				if (target && !target.online) archiveFlashName = "";
+			}
+			if (archiveFlashRoom) {
+				const stillActive = currentHuddles.some((h: any) => h.id === archiveFlashRoom);
+				if (!stillActive) archiveFlashRoom = "";
+			}
 			// navItems is $derived and recalculates immediately after sidebarItems assignment
 			const roomToFind = isInitialLoad ? (prefs?.selectedRoom ?? "") : currentRoomId;
 			selectedIndex = findNavIndex(navItems, roomToFind, wasOnHeader ? headerSection : undefined);
@@ -938,7 +946,7 @@
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ name }),
 			});
-			setTimeout(() => { archiveFlashName = ""; }, 1500);
+			setTimeout(() => { archiveFlashName = ""; }, 10000);
 		} catch {}
 	}
 
@@ -958,7 +966,7 @@
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ roomId }),
 			});
-			setTimeout(() => { archiveFlashRoom = ""; }, 1500);
+			setTimeout(() => { archiveFlashRoom = ""; }, 10000);
 		} catch {}
 	}
 	let nuking = $state(false);
@@ -1068,7 +1076,7 @@
 <svelte:window onkeydown={handleKeydown} onmousemove={onRulerMouseMove} onmouseup={onRulerMouseUp} />
 
 
-<div style="display: grid; grid-template-columns: 280px calc(50vw - 615px) 570px 1fr 570px 1fr; height: 100vh;">
+<div style="display: grid; grid-template-columns: 350px calc(50vw - 685px) 570px 1fr 570px 1fr; height: 100vh;">
 	<!-- Sidebar -->
 	<div style="background: var(--color-bg-panel); border-right: 1px dashed var(--color-bg-step4); display: flex; flex-direction: column; height: 100vh; visibility: {focusMode ? 'hidden' : 'visible'};">
 		<div style="flex: 1; overflow-y: auto; font-family: var(--font-sans);">

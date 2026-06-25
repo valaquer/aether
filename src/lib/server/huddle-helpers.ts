@@ -55,7 +55,7 @@ export function endHuddle(roomId: string): void {
  * SSE emit, and Kitty fan-out. Auto-ends huddle if no participants remain.
  * Returns the updated participant list, or null if the huddle was ended.
  */
-export function removeFromHuddle(roomId: string, participants: string[]): string[] | null {
+export function removeFromHuddle(roomId: string, participants: string[], silent?: boolean): string[] | null {
 	const room = getRoom(roomId);
 	if (!room) return null;
 
@@ -65,7 +65,7 @@ export function removeFromHuddle(roomId: string, participants: string[]): string
 	if (updated.length === 0) {
 		clearTokenTimer(roomId);
 		setRoomType(roomId, "past");
-		emitEvent({ type: "huddle_update" });
+		if (!silent) emitEvent({ type: "huddle_update" });
 		return null;
 	}
 
@@ -79,7 +79,7 @@ export function removeFromHuddle(roomId: string, participants: string[]): string
 		startedAt: room.startedAt,
 	});
 
-	emitEvent({ type: "huddle_update" });
+	if (!silent) emitEvent({ type: "huddle_update" });
 
 	for (const p of participants) {
 		clearTokenTimer(roomId);
@@ -89,31 +89,33 @@ export function removeFromHuddle(roomId: string, participants: string[]): string
 		}
 	}
 
-	const notification = `${participants.join(", ")} removed from huddle ${roomId}.`;
-	const msg = {
-		id: v4(),
-		conversationId: roomId,
-		sender: "system",
-		content: notification,
-		createdAt: new Date().toISOString(),
-		type: "message",
-	};
-	saveMessage(msg);
-	emitEvent({
-		type: "message",
-		conversationId: roomId,
-		sender: "system",
-		content: notification,
-		timestamp: msg.createdAt,
-	});
-
-	for (const name of updated) {
-		sendToKitty(name, {
+	if (!silent) {
+		const notification = `${participants.join(", ")} removed from huddle ${roomId}.`;
+		const msg = {
+			id: v4(),
+			conversationId: roomId,
 			sender: "system",
-			room: roomId,
-			body: notification,
+			content: notification,
+			createdAt: new Date().toISOString(),
+			type: "message",
+		};
+		saveMessage(msg);
+		emitEvent({
+			type: "message",
+			conversationId: roomId,
+			sender: "system",
+			content: notification,
 			timestamp: msg.createdAt,
-		}).catch(() => {});
+		});
+
+		for (const name of updated) {
+			sendToKitty(name, {
+				sender: "system",
+				room: roomId,
+				body: notification,
+				timestamp: msg.createdAt,
+			}).catch(() => {});
+		}
 	}
 
 	return updated;
@@ -128,7 +130,7 @@ export function removeFromAllHuddles(teammate: string): void {
 	for (const huddle of huddles) {
 		const members = getHuddleMembers(huddle.id);
 		if (members.includes(teammate)) {
-			removeFromHuddle(huddle.id, [teammate]);
+			removeFromHuddle(huddle.id, [teammate], true);
 		}
 	}
 }
