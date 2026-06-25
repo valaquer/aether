@@ -2,6 +2,8 @@
 	import { marked } from 'marked';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import LucideRewind from '~icons/lucide/rewind';
+	import LucidePlay from '~icons/lucide/play';
+	import LucidePause from '~icons/lucide/pause';
 	import LucideFastForward from '~icons/lucide/fast-forward';
 	import LucideRadio from '~icons/lucide/radio';
 	import LucideMaximize2 from '~icons/lucide/maximize-2';
@@ -537,9 +539,8 @@
 		newMessage = "";
 		await tick();
 		resizeInput();
-		flushQueue();
+		userScrolledUp = false;
 		if (rewindIndex !== null) { rewindIndex = null; clearRewindPosition(selectedConvId); }
-		if (currentRoomKind === "huddle") { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
 
 		try {
 			const res = await fetch("/api/message", {
@@ -777,7 +778,7 @@
 			if (rewindIndex !== null) {
 				if (rewindIndex >= chatMessages.length - 1) { rewindIndex = null; clearRewindPosition(selectedConvId); setTimeout(() => { if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 50); }
 				else { rewindIndex++; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; }
-			} else { stepOne(); }
+			} else if (isCurrentRoomPaused) { stepOne(); }
 		} else if (e.ctrlKey && e.key === 'ArrowLeft') {
 			e.preventDefault();
 			if (rewindIndex !== null) { if (rewindIndex > 0) { rewindIndex--; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } }
@@ -1218,9 +1219,9 @@
 				<div class="control-strip">
 					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} class:cop-car={miniPressure} title={miniPressure ? "Mini under pressure" : "Live mirror"}></span>
 				<button class="control-btn" onclick={() => { if (rewindIndex !== null) { if (rewindIndex > 0) { rewindIndex--; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } } else { rewindIndex = Math.max(0, chatMessages.length - 2); saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } }} title="Rewind">
-						<LucideRewind width={14} height={14} style="color: {isCurrentRoomPaused ? '#7a5e4a' : '#555'};" />
+						<LucideRewind width={14} height={14} style="color: #555;" />
 				</button>
-				<button class="control-btn" onclick={() => { if (!isCurrentRoomPaused) { if (selectedConvId.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } else { stepOne(); } }} title={isCurrentRoomPaused ? "Forward" : "Pause"}>
+				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) stepOne(); }} title="Forward" style="{isCurrentRoomPaused ? '' : 'pointer-events: none;'}">
 						<LucideFastForward width={14} height={14} style="color: {isCurrentRoomPaused ? '#7a5e4a' : '#555'};" />
 					{#if true}
 						{@const queueCount = (messageQueues[selectedConvId] ?? []).filter(m => !m.response).length}
@@ -1228,6 +1229,13 @@
 						{@const tens = queueCount >= 10 ? String(Math.floor((queueCount % 100) / 10)) : ''}
 						{@const ones = queueCount > 0 ? String(queueCount % 10) : ''}
 						<span class="queue-digits"><span class="queue-digit" style="opacity: {hundreds ? 1 : 0.25};">{hundreds}</span><span class="queue-digit" style="opacity: {tens ? 1 : 0.25};">{tens}</span><span class="queue-digit" style="opacity: {ones ? 1 : 0.25};">{ones}</span></span>
+					{/if}
+				</button>
+				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) { flushQueue(); if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.add(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } } else { if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } }} title={isCurrentRoomPaused ? "Resume live" : "Pause"}>
+					{#if isCurrentRoomPaused}
+						<LucidePlay width={14} height={14} style="color: #7a5e4a;" />
+					{:else}
+						<LucidePause width={14} height={14} style="color: #555;" />
 					{/if}
 				</button>
 				<button class="control-btn" onclick={sendPauseMessage} disabled={pausing} title="Pause — alert room">
