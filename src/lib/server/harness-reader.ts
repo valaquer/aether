@@ -12,7 +12,7 @@ import {
 const OPENCODE_DB = "/Users/deepak-macmini/.local/share/opencode/opencode.db";
 const CLAUDE_PROJECTS_DIR = "/Users/deepak-macmini/.claude/projects";
 const CLAUDE_MINI_PROJECTS_DIR = "/Users/deepak-macmini/honeybloom/.claude-mini/projects";
-const CLAUDE_PROJECT_PREFIX = "-Users-d-patnaik-honeybloom-";
+const CLAUDE_PROJECT_PREFIXES = ["-Users-deepak-macmini-honeybloom-", "-Users-d-patnaik-honeybloom-"];
 
 const CREDENTIAL_PATTERNS = [
 	/auth\.json/,
@@ -176,8 +176,10 @@ function getActiveJsonlFile(projectDir: string): string | null {
 }
 
 function extractTeammateFromProjectDir(dirName: string): string {
-	if (dirName.startsWith(CLAUDE_PROJECT_PREFIX)) {
-		return dirName.slice(CLAUDE_PROJECT_PREFIX.length);
+	for (const prefix of CLAUDE_PROJECT_PREFIXES) {
+		if (dirName.startsWith(prefix)) {
+			return dirName.slice(prefix.length);
+		}
 	}
 	return "";
 }
@@ -263,7 +265,7 @@ function onClaudeJsonlChange(projectDir: string, teammate: string): void {
 function initProjectDir(projectsDir: string, usePolling: boolean): void {
 	if (!fs.existsSync(projectsDir)) return;
 
-	const dirs = fs.readdirSync(projectsDir).filter((d) => d.startsWith(CLAUDE_PROJECT_PREFIX));
+	const dirs = fs.readdirSync(projectsDir).filter((d) => CLAUDE_PROJECT_PREFIXES.some((p) => d.startsWith(p)));
 
 	for (const dirName of dirs) {
 		const teammate = extractTeammateFromProjectDir(dirName);
@@ -305,7 +307,7 @@ function pollMiniProjects(): void {
 	try {
 		const dirs = fs
 			.readdirSync(CLAUDE_MINI_PROJECTS_DIR)
-			.filter((d) => d.startsWith(CLAUDE_PROJECT_PREFIX));
+			.filter((d) => CLAUDE_PROJECT_PREFIXES.some((p) => d.startsWith(p)));
 		for (const dirName of dirs) {
 			const teammate = extractTeammateFromProjectDir(dirName);
 			if (!teammate) continue;
@@ -413,6 +415,8 @@ function onDbChange(): void {
 
 export function startHarnessReader(): void {
 	// Process-level guard — prevent duplicate OpenCode readers from HMR re-imports
+	// NOTE: HMR replaces module code but does NOT reset globalThis flags. A full
+	// server restart (Ctrl+C + npm run dev) is required after changes to this file.
 	const g = globalThis as Record<string, unknown>;
 	if (g.__opencodeReaderActive) {
 		// Still start Claude reader if needed (has its own guard)
@@ -425,6 +429,19 @@ export function startHarnessReader(): void {
 	// OpenCode SQLite reader — event-driven via fs.watch, rowid cursor
 	if (fs.existsSync(OPENCODE_DB)) {
 		g.__opencodeReaderActive = true;
+		// Auto-reset cursor if OpenCode DB was recreated (rowids restarted)
+		try {
+			const resetDb = new Database(OPENCODE_DB, { readonly: true });
+			const maxRow = resetDb.prepare("SELECT MAX(rowid) as maxId FROM part").get() as { maxId: number | null } | undefined;
+			resetDb.close();
+			if (maxRow?.maxId != null && maxRow.maxId < lastRowId) {
+				console.log(`harness-reader: OpenCode DB recreated — cursor ${lastRowId} > MAX(rowid) ${maxRow.maxId}, resetting`);
+				lastRowId = maxRow.maxId;
+				setHarnessState("opencode_last_rowid", String(lastRowId));
+			}
+		} catch (e) {
+			console.error("harness-reader: OpenCode cursor auto-reset check failed", e);
+		}
 		// Initialize lastRowId to MAX(rowid) for active sessions on cold start
 		if (lastRowId === 0) {
 			try {
