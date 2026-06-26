@@ -17,6 +17,7 @@
 	import LucideMilestone from '~icons/lucide/milestone';
 	import LucideConstruction from '~icons/lucide/construction';
 	import LucidePower from '~icons/lucide/power';
+	import LucidePrinter from '~icons/lucide/printer';
 
 	marked.setOptions({ breaks: true, gfm: true });
 
@@ -953,6 +954,8 @@
 
 	let copyFlashRoom = $state("");
 	let copyFlashMsgId = $state("");
+	let printFlashRoom = $state("");
+	let printFlashMsgId = $state("");
 	let archiveFlashName = $state("");
 	let archiveFlashRoom = $state("");
 
@@ -1048,6 +1051,32 @@
 		} catch {}
 	}
 
+	async function printRoom(roomId: string) {
+		try {
+			const res = await fetch("/api/print", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ roomId }),
+			});
+			if (!res.ok) return;
+			printFlashRoom = roomId;
+			setTimeout(() => { printFlashRoom = ""; }, 1500);
+		} catch {}
+	}
+
+	async function printMessage(msg: any) {
+		try {
+			const res = await fetch("/api/print", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ roomId: selectedConvId, messageId: msg.id }),
+			});
+			if (!res.ok) return;
+			printFlashMsgId = msg.id;
+			setTimeout(() => { printFlashMsgId = ""; }, 1500);
+		} catch {}
+	}
+
 	// Ruler overlay
 	let showRuler = $state(false);
 	let rulerX = $state(100);
@@ -1114,6 +1143,7 @@
 						{#if item.online}<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>{/if}
 					</div>
 				{:else if nav.type === "huddle"}
@@ -1134,6 +1164,7 @@
 						<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>
 					</div>
 				{:else if nav.type === "bookmark"}
@@ -1172,6 +1203,7 @@
 						<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => e.stopPropagation()} title="Archive"><LucideArchive width={14} height={14} /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>
 					</div>
 				{/if}
@@ -1204,6 +1236,7 @@
 							</div>
 							<span class="msg-actions">
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
+								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
 							</span>
 						</div>
