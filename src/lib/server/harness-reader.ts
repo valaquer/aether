@@ -133,6 +133,7 @@ function emitTextResponse(
 let lastRowId: number = Number(getHarnessState("opencode_last_rowid") || "0");
 let watcherCleanup: (() => void) | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let opencodePollInterval: ReturnType<typeof setInterval> | null = null;
 
 // Claude Code JSONL reader state — offsets persisted in Aether DB
 const jsonlOffsets = new Map<string, number>();
@@ -471,6 +472,8 @@ export function startHarnessReader(): void {
 		const watcher = fs.watch(dbDir, (eventType, filename) => {
 			if (filename && filename.includes("opencode")) onDbChange();
 		});
+		// Polling fallback — fs.watch misses WAL-mode writes that don't touch the main DB file
+		opencodePollInterval = setInterval(checkOpenCodeDb, 2000);
 		watcherCleanup = () => {
 			watcher.close();
 			if (debounceTimer) clearTimeout(debounceTimer);
@@ -487,6 +490,10 @@ export function stopHarnessReader(): void {
 	if (watcherCleanup) {
 		watcherCleanup();
 		watcherCleanup = null;
+	}
+	if (opencodePollInterval) {
+		clearInterval(opencodePollInterval);
+		opencodePollInterval = null;
 	}
 	const _g = globalThis as Record<string, unknown>;
 	_g.__opencodeReaderActive = false;
