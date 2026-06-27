@@ -720,11 +720,13 @@
 		if (!room) return; // Header selected — keep displaying previous room
 		if (room === prevRoom) return;
 		prevRoom = room;
-		displayedConvId = room;
-		savePrefs();
+		// Chat panel stays frozen during rapid Ctrl+Up/Down — only sidebar highlight moves.
+		// displayedConvId + savePrefs + fetch all deferred until Boss stops navigating for 1s.
 		userScrolledUp = false;
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		roomSwitchTimer = setTimeout(() => {
+			displayedConvId = room;
+			savePrefs();
 			if (room.startsWith("huddle-") && stoppedHuddles.has(room)) {
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
