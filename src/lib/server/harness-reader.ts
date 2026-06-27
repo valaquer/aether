@@ -321,7 +321,10 @@ function pollMiniProjects(): void {
 
 function startClaudeCodeReader(): void {
 	const g = globalThis as Record<string, unknown>;
-	if (g.__claudeReaderActive) return;
+	// Close-and-replace pattern — if old reader exists, clean up before starting fresh
+	if (g.__claudeReaderActive) {
+		stopClaudeCodeReader();
+	}
 	g.__claudeReaderActive = true;
 
 	// Local projects — fs.watch (FSEvents works for local writes)
@@ -415,20 +418,22 @@ function onDbChange(): void {
 }
 
 export function startHarnessReader(): void {
-	// Process-level guard — prevent duplicate OpenCode readers from HMR re-imports
-	// NOTE: HMR replaces module code but does NOT reset globalThis flags. A full
-	// server restart (Ctrl+C + npm run dev) is required after changes to this file.
 	const g = globalThis as Record<string, unknown>;
-	if (g.__opencodeReaderActive) {
-		// Still start Claude reader if needed (has its own guard)
-		startClaudeCodeReader();
-		return;
-	}
+	console.log(`harness-reader: startHarnessReader called — __opencodeReaderActive=${g.__opencodeReaderActive}, watcherCleanup=${!!watcherCleanup}, OPENCODE_DB exists=${fs.existsSync(OPENCODE_DB)}`);
 
-	if (watcherCleanup) return;
+	// Close-and-replace pattern — if an old reader exists, clean it up before starting fresh
+	if (g.__opencodeReaderActive) {
+		console.log("harness-reader: closing old OpenCode reader for close-and-replace");
+		if (watcherCleanup) { watcherCleanup(); watcherCleanup = null; }
+		if (opencodePollInterval) { clearInterval(opencodePollInterval); opencodePollInterval = null; }
+		g.__opencodeReaderActive = false;
+		// Re-read cursor from DB for fresh state
+		lastRowId = Number(getHarnessState("opencode_last_rowid") || "0");
+	}
 
 	// OpenCode SQLite reader — event-driven via fs.watch, rowid cursor
 	if (fs.existsSync(OPENCODE_DB)) {
+		console.log(`harness-reader: OpenCode DB found, initializing reader (lastRowId=${lastRowId})`);
 		g.__opencodeReaderActive = true;
 		// Auto-reset cursor if OpenCode DB was recreated (rowids restarted)
 		try {
