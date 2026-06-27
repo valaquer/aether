@@ -3,14 +3,14 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { RequestHandler } from "./$types";
 
-const BAVARIA_DIR = "/Users/deepak-macmini/honeybloom/bavaria";
+const BAVARIA_DIR = "/Users/deepak-macmini/honeybloom/library/bavaria";
 
 export const GET: RequestHandler = async ({ params }) => {
 	const id = params.id;
 	if (!/^[\w-]+$/i.test(id)) throw error(400, "Invalid ID");
 
 	const topEntries = await readdir(BAVARIA_DIR).catch(() => []);
-	const folders = topEntries.filter((f) => /^\d+-/.test(f));
+	const folders = topEntries.filter((f) => !f.startsWith("."));
 
 	let filePath: string | null = null;
 	for (const folder of folders) {

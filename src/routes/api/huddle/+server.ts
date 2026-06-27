@@ -37,7 +37,12 @@ async function ensureTabOpen(name: string): Promise<string> {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { action, host, participants, sender, roomId } = await request.json();
+	const data = await request.json();
+	const action = data.action;
+	const host = data.host?.toLowerCase();
+	const participants = (data.participants as string[])?.map((p: string) => p.toLowerCase());
+	const sender = data.sender?.toLowerCase();
+	const roomId = data.roomId;
 
 	if (action === "start") {
 		if (!host || !participants || !Array.isArray(participants)) {

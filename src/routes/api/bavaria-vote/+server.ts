@@ -5,7 +5,7 @@ import { execSync } from "node:child_process";
 import path from "node:path";
 import type { RequestHandler } from "./$types";
 
-const BAVARIA_DIR = "/Users/deepak-macmini/honeybloom/bavaria";
+const BAVARIA_DIR = "/Users/deepak-macmini/honeybloom/library/bavaria";
 const MANIFEST_FILE = path.join(BAVARIA_DIR, "bavaria-manifest.json");
 
 interface AssetEntry {
@@ -20,7 +20,7 @@ interface Manifest {
 function findAssetFile(id: string): string | null {
 	try {
 		const topEntries = readdirSync(BAVARIA_DIR);
-		const folders = topEntries.filter((f) => /^\d+-/.test(f));
+		const folders = topEntries.filter((f) => !f.startsWith("."));
 		for (const folder of folders) {
 			const dir = path.join(BAVARIA_DIR, folder);
 			try {

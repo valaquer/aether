@@ -403,6 +403,14 @@
 				const target = teammates.find((t: any) => t.name === archiveFlashName);
 				if (target && !target.online) archiveFlashName = "";
 			}
+			if (archivingTeammates.size > 0) {
+				let changed = false;
+				for (const name of archivingTeammates) {
+					const t = teammates.find((tm: any) => tm.name === name);
+					if (t && !t.online) { archivingTeammates.delete(name); changed = true; }
+				}
+				if (changed) archivingTeammates = new Set(archivingTeammates);
+			}
 			if (archiveFlashRoom) {
 				const stillActive = currentHuddles.some((h: any) => h.id === archiveFlashRoom);
 				if (!stillActive) archiveFlashRoom = "";
@@ -442,7 +450,7 @@
 		userScrolledUp = false;
 		if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; }
 		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
-		if (convId?.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
+		if (convId?.startsWith("huddle-")) { stoppedHuddles.delete(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
 	}
 
 	async function sendPauseMessage() {
@@ -522,7 +530,7 @@
 		queuedMessageIds = queuedMessageIds;
 		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 		if (!isCurrentRoomPaused) {
-			if (convId.startsWith("huddle-")) { stoppedHuddles.delete(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
+			if (convId.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
 			else { pausedRoom = convId; localStorage.setItem('aether-paused-room', convId); }
 		}
 		setTimeout(() => {
@@ -581,7 +589,11 @@
 					response: data.response === true,
 					summary: data.summary || "",
 				};
-				if (msg.sender !== "boss" && ((convId.startsWith("huddle-") && !stoppedHuddles.has(convId)) || convId === pausedRoom || (convId === selectedConvId && loadingRoom))) {
+				if (msg.toolCall || msg.response) {
+					// Activity cards bypass pause queue — always visible in activity panel
+					conversations[convId] = [...(conversations[convId] ?? []), msg];
+					conversations = conversations;
+				} else if (msg.sender !== "boss" && ((convId.startsWith("huddle-") && stoppedHuddles.has(convId)) || convId === pausedRoom || (convId === selectedConvId && loadingRoom))) {
 					messageQueues[convId] = [...(messageQueues[convId] ?? []), msg];
 					messageQueues = messageQueues;
 					queuedMessageIds[convId] = [...(queuedMessageIds[convId] ?? []), msg.id];
@@ -713,8 +725,8 @@
 		userScrolledUp = false;
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		roomSwitchTimer = setTimeout(() => {
-			if (room.startsWith("huddle-") && !stoppedHuddles.has(room)) {
-				// Huddle pause is implicit — all huddles paused unless in stoppedHuddles
+			if (room.startsWith("huddle-") && stoppedHuddles.has(room)) {
+				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
 			loadingRoom = room;
 			fetch(`/api/messages?room=${room}`)
@@ -724,7 +736,7 @@
 					const parsed = msgs.map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
 					// If paused and have queued IDs, split: queued go to messageQueues, rest to conversations
 					const roomQueuedIds = queuedMessageIds[room] ?? [];
-					if ((room.startsWith("huddle-") && !stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
+					if ((room.startsWith("huddle-") && stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
 						const queuedSet = new Set(roomQueuedIds);
 						const queued = parsed.filter((m: ChatMsg) => queuedSet.has(m.id));
 						const rest = parsed.filter((m: ChatMsg) => !queuedSet.has(m.id));
@@ -817,7 +829,7 @@
 	});
 	let chatMessages = $derived(currentMessages.filter((m) => !m.toolCall && !m.response));
 	let activityCards = $derived(currentMessages.filter((m) => m.toolCall || m.response));
-	let isCurrentRoomPaused = $derived((selectedConvId?.startsWith("huddle-") && !stoppedHuddles.has(selectedConvId)) || pausedRoom === selectedConvId);
+	let isCurrentRoomPaused = $derived((selectedConvId?.startsWith("huddle-") && stoppedHuddles.has(selectedConvId)) || pausedRoom === selectedConvId);
 
 	$effect(() => {
 		chatMessages;
@@ -936,6 +948,8 @@
 
 	async function dismissTeammate(name: string) {
 		try {
+			archivingTeammates.add(name);
+			archivingTeammates = new Set(archivingTeammates);
 			archiveFlashName = name;
 			pulsingTeammates = pulsingTeammates.filter(n => n !== name);
 			const currentNav = navItems[selectedIndex];
@@ -958,6 +972,7 @@
 	let printFlashMsgId = $state("");
 	let archiveFlashName = $state("");
 	let archiveFlashRoom = $state("");
+	let archivingTeammates = $state(new Set<string>());
 
 	async function archiveHuddle(roomId: string) {
 		try {
@@ -1139,8 +1154,8 @@
 						onclick={() => { if (pulsingTeammates.includes(fmt.label)) { pulsingTeammates = pulsingTeammates.filter(n => n !== fmt.label); fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: fmt.label }) }).catch(() => {}); } selectedIndex = i; }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
-						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online ? '#4ade80' : '#555'}; {item.online ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
-						{#if item.online}<span class="sidebar-actions">
+						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
+						{#if item.online && !archivingTeammates.has(fmt.label)}<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1264,7 +1279,7 @@
 						<span class="queue-digits"><span class="queue-digit" style="opacity: {hundreds ? 1 : 0.25};">{hundreds}</span><span class="queue-digit" style="opacity: {tens ? 1 : 0.25};">{tens}</span><span class="queue-digit" style="opacity: {ones ? 1 : 0.25};">{ones}</span></span>
 					{/if}
 				</button>
-				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) { flushQueue(); if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.add(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } } else { if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } }} title={isCurrentRoomPaused ? "Resume live" : "Pause"}>
+				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) { flushQueue(); if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } } else { if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.add(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } }} title={isCurrentRoomPaused ? "Resume live" : "Pause"}>
 					{#if isCurrentRoomPaused}
 						<LucidePlay width={14} height={14} style="color: #7a5e4a;" />
 					{:else}

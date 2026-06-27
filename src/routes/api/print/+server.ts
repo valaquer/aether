@@ -55,7 +55,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// Generate PDF and print
 	try {
-		execSync(`${PANDOC} "${mdPath}" -o "${pdfPath}" --pdf-engine=xelatex -V mainfont="JetBrains Mono" -V fontsize=11pt -V geometry:"top=1cm, bottom=1cm"`, {
+		execSync(`${PANDOC} "${mdPath}" -o "${pdfPath}" --pdf-engine=xelatex -V mainfont="JetBrains Mono" -V fontsize=8pt -V geometry:"top=0.5in, bottom=0.5in, left=1in, right=1in"`, {
 			env: { ...process.env, PATH: `/Library/TeX/texbin:${process.env.PATH}` },
 			timeout: 30000,
 		});
