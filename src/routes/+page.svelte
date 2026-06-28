@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { renderMd, renderToolCard } from './renderUtils';
+	import { fallbackCopyText, copyRoom as _copyRoom, copyMessage as _copyMessage, printRoom as _printRoom, printMessage as _printMessage } from './clipboardUtils';
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucidePlay from '~icons/lucide/play';
 	import LucidePause from '~icons/lucide/pause';
@@ -841,90 +842,24 @@
 		}
 	}
 
-	function fallbackCopyText(text: string) {
-		const ta = document.createElement("textarea");
-		ta.value = text;
-		ta.style.cssText = "position:fixed;left:-9999px";
-		document.body.appendChild(ta);
-		ta.select();
-		document.execCommand("copy");
-		document.body.removeChild(ta);
-	}
-
-	function fallbackCopyRich(html: string, plain: string) {
-		const div = document.createElement("div");
-		div.contentEditable = "true";
-		div.innerHTML = html;
-		div.style.cssText = "position:fixed;left:-9999px";
-		document.body.appendChild(div);
-		const range = document.createRange();
-		range.selectNodeContents(div);
-		const sel = window.getSelection();
-		sel?.removeAllRanges();
-		sel?.addRange(range);
-		document.execCommand("copy");
-		document.body.removeChild(div);
-	}
-
 	async function copyRoom(roomId: string) {
-		try {
-			const res = await fetch("/api/copy-room", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ roomId }),
-			});
-			if (!res.ok) return;
-			const { filePath } = await res.json();
-			const text = `Read up on the conversation that happened in this room: ${filePath}`;
-			try { await navigator.clipboard.writeText(text); } catch { fallbackCopyText(text); }
-			copyFlashRoom = roomId;
-			setTimeout(() => { copyFlashRoom = ""; }, 1500);
-		} catch {}
+		const id = await _copyRoom(roomId);
+		if (id) { copyFlashRoom = id; setTimeout(() => { copyFlashRoom = ""; }, 1500); }
 	}
 
 	async function copyMessage(msg: any) {
-		try {
-			const row = document.querySelector(`.msg-row[data-msg-id="${msg.id}"]`);
-			const contentEl = row?.querySelector('.md-content') ?? row?.firstElementChild;
-			const html = `<strong>${msg.sender}</strong><br>${contentEl?.innerHTML ?? msg.content}`;
-			const plain = `${msg.sender}\n${msg.content}`;
-			try {
-				await navigator.clipboard.write([
-					new ClipboardItem({
-						"text/html": new Blob([html], { type: "text/html" }),
-						"text/plain": new Blob([plain], { type: "text/plain" }),
-					})
-				]);
-			} catch { fallbackCopyRich(html, plain); }
-			copyFlashMsgId = msg.id;
-			setTimeout(() => { copyFlashMsgId = ""; }, 1500);
-		} catch {}
+		const id = await _copyMessage(msg);
+		if (id) { copyFlashMsgId = id; setTimeout(() => { copyFlashMsgId = ""; }, 1500); }
 	}
 
 	async function printRoom(roomId: string) {
-		try {
-			const res = await fetch("/api/print", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ roomId }),
-			});
-			if (!res.ok) return;
-			printFlashRoom = roomId;
-			setTimeout(() => { printFlashRoom = ""; }, 1500);
-		} catch {}
+		const id = await _printRoom(roomId);
+		if (id) { printFlashRoom = id; setTimeout(() => { printFlashRoom = ""; }, 1500); }
 	}
 
 	async function printMessage(msg: any) {
-		try {
-			const res = await fetch("/api/print", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ roomId: selectedConvId, messageId: msg.id }),
-			});
-			if (!res.ok) return;
-			printFlashMsgId = msg.id;
-			setTimeout(() => { printFlashMsgId = ""; }, 1500);
-		} catch {}
+		const id = await _printMessage(msg, selectedConvId);
+		if (id) { printFlashMsgId = id; setTimeout(() => { printFlashMsgId = ""; }, 1500); }
 	}
 
 	// Ruler overlay
