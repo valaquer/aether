@@ -2,6 +2,7 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { renderMd, renderToolCard } from './renderUtils';
 	import { fallbackCopyText, copyRoom as _copyRoom, copyMessage as _copyMessage, printRoom as _printRoom, printMessage as _printMessage } from './clipboardUtils';
+	import { type Bookmark, getBookmarks, setBookmarks, getEditingBookmarkId, setEditingBookmarkId, getEditingBookmarkName, setEditingBookmarkName, getPendingScrollMessageId, setPendingScrollMessageId, loadBookmarks, toggleBookmark, commitBookmarkName } from './bookmarkStore.svelte';
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucidePlay from '~icons/lucide/play';
 	import LucidePause from '~icons/lucide/pause';
@@ -54,7 +55,7 @@
 
 	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string };
 	type ChatMsg = { id: string; sender: string; content: string; createdAt: string; toolCall?: boolean; response?: boolean; summary?: string };
-	type Bookmark = { id: string; messageId: string; roomId: string; name: string; createdAt: string };
+	// Bookmark type imported from bookmarkStore.svelte.ts
 	type NavItem =
 		| { type: "header"; section: string }
 		| { type: "teammate"; item: SidebarItem }
@@ -609,13 +610,13 @@
 			if (navItems.length === 0) return;
 			selectedIndex = Math.min(selectedIndex + 1, navItems.length - 1);
 			const nav = navItems[selectedIndex];
-			if (nav?.type === "bookmark") pendingScrollMessageId = nav.bm.messageId;
+			if (nav?.type === "bookmark") setPendingScrollMessageId(nav.bm.messageId);
 		} else if (e.ctrlKey && e.key === 'ArrowUp') {
 			e.preventDefault();
 			if (navItems.length === 0) return;
 			selectedIndex = Math.max(selectedIndex - 1, 0);
 			const nav = navItems[selectedIndex];
-			if (nav?.type === "bookmark") pendingScrollMessageId = nav.bm.messageId;
+			if (nav?.type === "bookmark") setPendingScrollMessageId(nav.bm.messageId);
 		} else if (e.key === 'Enter' && !e.shiftKey && document.activeElement !== inputRef) {
 			e.preventDefault();
 			inputRef?.focus();
@@ -687,67 +688,18 @@
 		setTimeout(() => node.focus(), 0);
 	}
 
-	// Bookmarks
-	let bookmarks = $state<Bookmark[]>([]);
-	let editingBookmarkId = $state<string | null>(null);
-	let editingBookmarkName = $state("");
-	let pendingScrollMessageId = $state<string | null>(null);
-
-	async function loadBookmarks() {
-		try {
-			const res = await fetch("/api/bookmarks");
-			bookmarks = await res.json();
-		} catch { bookmarks = []; }
-	}
-
-	async function toggleBookmark(msg: ChatMsg) {
-		const existing = bookmarks.find(bm => bm.messageId === msg.id);
-		if (existing) {
-			await fetch("/api/bookmarks", {
-				method: "DELETE",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ id: existing.id }),
-			});
-			bookmarks = bookmarks.filter(bm => bm.id !== existing.id);
-		} else {
-			const fallbackTime = new Date(msg.createdAt);
-			const hh = String(fallbackTime.getHours()).padStart(2, "0");
-			const mm = String(fallbackTime.getMinutes()).padStart(2, "0");
-			const fallbackName = `${msg.sender} \u00b7 ${hh}:${mm}`;
-			const res = await fetch("/api/bookmarks", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ messageId: msg.id, roomId: selectedConvId, name: fallbackName }),
-			});
-			if (res.ok) {
-				const bm: Bookmark = await res.json();
-				bookmarks = [bm, ...bookmarks];
-				editingBookmarkId = bm.id;
-				editingBookmarkName = "";
-			}
-		}
-	}
-
-	function commitBookmarkName(bm: Bookmark) {
-		const trimmed = editingBookmarkName.trim();
-		if (trimmed) {
-			bm.name = trimmed;
-			fetch("/api/bookmarks", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ id: bm.id, name: bm.name }),
-			}).catch(() => {});
-		}
-		editingBookmarkId = null;
-		editingBookmarkName = "";
-		bookmarks = [...bookmarks];
-	}
+	// Bookmarks — state + CRUD in bookmarkStore.svelte.ts
+	// Read via getters ($derived), write via setters
+	let bookmarks = $derived(getBookmarks());
+	let editingBookmarkId = $derived(getEditingBookmarkId());
+	let editingBookmarkName = $derived(getEditingBookmarkName());
+	let pendingScrollMessageId = $derived(getPendingScrollMessageId());
 
 	function navigateToBookmark(bm: Bookmark) {
 		const idx = navItems.findIndex(n => n.type === "bookmark" && n.bm.id === bm.id);
 		if (idx >= 0) {
 			selectedIndex = idx;
-			pendingScrollMessageId = bm.messageId;
+			setPendingScrollMessageId(bm.messageId);
 		}
 	}
 
@@ -758,7 +710,7 @@
 			el.scrollIntoView({ behavior: "smooth", block: "center" });
 			el.classList.add("bookmark-highlight");
 			setTimeout(() => el.classList.remove("bookmark-highlight"), 2000);
-			pendingScrollMessageId = null;
+			setPendingScrollMessageId(null);
 		}
 	}
 
@@ -959,13 +911,14 @@
 					{@const bmLocalIdx = navItems.slice(0, i).filter(n => n.type === "bookmark").length}
 					<div
 						data-nav-idx={i}
-						onclick={() => { selectedIndex = i; pendingScrollMessageId = bm.messageId; }}
+						onclick={() => { selectedIndex = i; setPendingScrollMessageId(bm.messageId); }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (bmLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')};"
 					>
 						{#if editingBookmarkId === bm.id}
 							<input
 								type="text"
-								bind:value={editingBookmarkName}
+								value={editingBookmarkName}
+								oninput={(e) => setEditingBookmarkName(e.currentTarget.value)}
 								placeholder="Type bookmark name"
 								onkeydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); commitBookmarkName(bm); } }}
 								onblur={() => commitBookmarkName(bm)}
@@ -1024,7 +977,7 @@
 							<span class="msg-actions">
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
-								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
+								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
 							</span>
 						</div>
 					{/each}
