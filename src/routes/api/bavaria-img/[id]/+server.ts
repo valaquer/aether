@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	for (const folder of folders) {
 		const dir = path.join(BAVARIA_DIR, folder);
 		const entries = await readdir(dir).catch(() => []);
-		const match = entries.find((f) => f.startsWith(id + ".") && /\.(png|jpg|jpeg|webp|svg)$/i.test(f));
+		const match = entries.find((f) => f.startsWith(id + ".") && /\.(png|jpg|jpeg|webp|svg|mp4)$/i.test(f));
 		if (match) {
 			filePath = path.join(dir, match);
 			break;
@@ -31,6 +31,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" :
 		ext === ".webp" ? "image/webp" :
 		ext === ".svg" ? "image/svg+xml" :
+		ext === ".mp4" ? "video/mp4" :
 		"application/octet-stream";
 
 	const file = await readFile(filePath);

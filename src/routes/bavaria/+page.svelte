@@ -32,6 +32,7 @@
 	});
 
 	let folderCodes: Record<string, string> = $derived(data.folderCodes ?? {});
+	let videoIds = $derived(new Set(data.videoIds ?? []));
 	let sidebarEntries = $derived(folders.map(f => ({ label: f.replace(/^\d+-/, '').replace(/-/g, ' '), folder: f, code: folderCodes[f] ?? '' })));
 
 	let ids = $derived.by(() => {
@@ -183,7 +184,7 @@
 				{/each}
 			</div>
 			<div style="padding: 1rem 1.5rem; font-size: 11px; color: var(--color-text-muted); font-family: var(--font-mono); border-top: 1px dashed var(--color-bg-step4); flex-shrink: 0;">
-				Cache code: Z6B
+				Cache code: M9P
 			</div>
 		</nav>
 
@@ -204,12 +205,20 @@
 								>
 									<svg style="width: 10px; height: 10px;" viewBox="0 0 20 20" fill="none" stroke="#ff4444" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/></svg>
 								</button>
+							{#if videoIds.has(id)}
+								<video
+									src="/api/bavaria-img/{id}"
+									style="height: 100%; width: auto; object-fit: contain;"
+									autoplay muted loop playsinline
+								></video>
+							{:else}
 								<img
 									src="/api/bavaria-img/{id}"
 									alt={id}
 									style="height: 100%; width: auto; object-fit: contain;"
 									loading="lazy"
 								/>
+							{/if}
 							</div>
 							<div style="padding: 3px 8px; display: flex; align-items: center; justify-content: space-between;">
 								<span style="font-family: var(--font-mono); font-weight: 400; font-size: 10px; letter-spacing: 0.08em; color: #7a5e4a;">{formatCode(id)}</span>
