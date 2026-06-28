@@ -3,6 +3,7 @@
 	import { renderMd, renderToolCard } from './renderUtils';
 	import { fallbackCopyText, copyRoom as _copyRoom, copyMessage as _copyMessage, printRoom as _printRoom, printMessage as _printMessage } from './clipboardUtils';
 	import { type Bookmark, getBookmarks, setBookmarks, getEditingBookmarkId, setEditingBookmarkId, getEditingBookmarkName, setEditingBookmarkName, getPendingScrollMessageId, setPendingScrollMessageId, loadBookmarks, toggleBookmark, commitBookmarkName } from './bookmarkStore.svelte';
+	import { getShowRuler, toggleRuler, getRulerX, getRulerY, getDragging, onRulerMouseDown, onRulerMouseMove, onRulerMouseUp } from './rulerStore.svelte';
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucidePlay from '~icons/lucide/play';
 	import LucidePause from '~icons/lucide/pause';
@@ -814,30 +815,11 @@
 		if (id) { printFlashMsgId = id; setTimeout(() => { printFlashMsgId = ""; }, 1500); }
 	}
 
-	// Ruler overlay
-	let showRuler = $state(false);
-	let rulerX = $state(100);
-	let rulerY = $state(200);
-	let dragging = $state(false);
-	let dragOffsetX = 0;
-	let dragOffsetY = 0;
-
-	function onRulerMouseDown(e: MouseEvent) {
-		dragging = true;
-		dragOffsetX = e.clientX - rulerX;
-		dragOffsetY = e.clientY - rulerY;
-		e.preventDefault();
-	}
-
-	function onRulerMouseMove(e: MouseEvent) {
-		if (!dragging) return;
-		rulerX = e.clientX - dragOffsetX;
-		rulerY = e.clientY - dragOffsetY;
-	}
-
-	function onRulerMouseUp() {
-		dragging = false;
-	}
+	// Ruler — state + handlers in rulerStore.svelte.ts
+	let showRuler = $derived(getShowRuler());
+	let rulerX = $derived(getRulerX());
+	let rulerY = $derived(getRulerY());
+	let dragging = $derived(getDragging());
 </script>
 
 <svelte:window onkeydown={handleKeydown} onmousemove={onRulerMouseMove} onmouseup={onRulerMouseUp} />
@@ -1120,7 +1102,7 @@
 
 <!-- Ruler toggle button -->
 <button
-	onclick={() => showRuler = !showRuler}
+	onclick={() => toggleRuler()}
 	style="position: fixed; bottom: 12px; right: 12px; z-index: 10000; width: 28px; height: 28px; border-radius: 4px; border: 1px dashed var(--color-bg-step4); background: var(--color-bg-panel); color: var(--color-text-muted); font-size: 14px; cursor: pointer; display: none; align-items: center; justify-content: center; opacity: 0.6;"
 	title="Toggle ruler"
 >📏</button>
