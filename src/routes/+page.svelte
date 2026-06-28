@@ -218,7 +218,7 @@
 		});
 	});
 
-	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; startedAt?: string };
+	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string };
 	type ChatMsg = { id: string; sender: string; content: string; createdAt: string; toolCall?: boolean; response?: boolean; summary?: string };
 	type Bookmark = { id: string; messageId: string; roomId: string; name: string; createdAt: string };
 	type NavItem =
@@ -314,7 +314,7 @@
 			items.push({ type: "teammate", item });
 		}
 		items.push({ type: "header", section: "Huddles" });
-		for (const item of sidebarItems.filter(x => x.kind === "huddle").sort((a, b) => a.id.localeCompare(b.id))) {
+		for (const item of sidebarItems.filter(x => x.kind === "huddle").sort((a, b) => (a.hostGroupIdx ?? 999) - (b.hostGroupIdx ?? 999))) {
 			items.push({ type: "huddle", item });
 		}
 		if (bookmarks.length > 0) {
@@ -394,7 +394,7 @@
 			const data = await responses[0].json();
 			const prefs = isInitialLoad ? await responses[1].json() : null;
 			const teammates = (data.teammates ?? []).map((t: { id: string; name: string; model: string; online: boolean; group?: string; groupIdx?: number }) => ({ id: t.id, name: t.name, model: t.model || "", kind: "teammate" as const, online: t.online, group: t.group || "", groupIdx: t.groupIdx ?? 0 }));
-			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; participants: string[] }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants }));
+			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[] }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999 }));
 			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string; startedAt?: string }) => ({ id: p.id, name: p.name, kind: "past" as const, startedAt: p.startedAt }));
 
 			const items = [...teammates, ...currentHuddles, ...pastItems];
@@ -1126,7 +1126,7 @@
 <div style="display: grid; grid-template-columns: 350px calc(50vw - 685px) 570px 1fr 570px 1fr; height: 100vh;">
 	<!-- Sidebar -->
 	<div style="background: var(--color-bg-panel); border-right: 1px dashed var(--color-bg-step4); display: flex; flex-direction: column; height: 100vh; visibility: {focusMode ? 'hidden' : 'visible'};">
-		<div style="flex: 1; overflow-y: auto; font-family: var(--font-sans);">
+		<div style="flex: 1; overflow-y: auto; font-family: var(--font-sans); font-size: 10px;">
 		{#if sidebarLoaded}
 			{#each navItems as nav, i}
 				{#if nav.type === "header"}
@@ -1150,13 +1150,15 @@
 				{:else if nav.type === "teammate"}
 					{@const item = nav.item}
 					{@const fmt = formatPastRoom(item.id)}
+					{@const prevNav = navItems[i - 1]}
+					{@const isFirstInGroup = !prevNav || prevNav.type !== "teammate" || (prevNav.item.groupIdx ?? 0) !== (item.groupIdx ?? 0)}
 					<div
 						class="teammate-row{pulsingTeammates.includes(fmt.label) ? ' notification-pulse' : ''}"
 						data-nav-idx={i}
 						onclick={() => { if (pulsingTeammates.includes(fmt.label)) { pulsingTeammates = pulsingTeammates.filter(n => n !== fmt.label); fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: fmt.label }) }).catch(() => {}); } selectedIndex = i; }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
-						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span> {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
+						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span>{#if isFirstInGroup && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
 						{#if item.online && !archivingTeammates.has(fmt.label)}<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1174,7 +1176,7 @@
 						onclick={() => selectedIndex = i}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashRoom === item.id ? '#555' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)')}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (huddleLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative; {archiveFlashRoom === item.id ? 'opacity: 0.3;' : ''}"
 					>
-						<div>{isMainHuddle ? "Main huddle" : fmt.label} &nbsp;{#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						<div>{#if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}

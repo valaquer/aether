@@ -80,10 +80,10 @@ export const GET: RequestHandler = async () => {
 		roomByName[name] = r.id;
 	}
 	const sidebarGroups = loadSidebarGroups();
-	const memberToGroup: Record<string, { idx: number; label: string }> = {};
+	const memberToGroup: Record<string, { idx: number; label: string; memberIdx: number }> = {};
 	sidebarGroups.forEach((g, i) => {
-		g.members.forEach((m) => {
-			memberToGroup[m] = { idx: i, label: g.label };
+		g.members.forEach((m, mi) => {
+			memberToGroup[m] = { idx: i, label: g.label, memberIdx: mi };
 		});
 	});
 	const teammates = roster.map((name) => ({
@@ -94,10 +94,11 @@ export const GET: RequestHandler = async () => {
 		online: alive.has(name),
 		group: memberToGroup[name]?.label || "",
 		groupIdx: memberToGroup[name]?.idx ?? sidebarGroups.length,
+		memberIdx: memberToGroup[name]?.memberIdx ?? 0,
 	}));
 	teammates.sort((a, b) => {
 		if (a.groupIdx !== b.groupIdx) return a.groupIdx - b.groupIdx;
-		return a.name.localeCompare(b.name);
+		return a.memberIdx - b.memberIdx;
 	});
 
 	const huddleRooms = getAllRooms().filter((r) => r.type === "huddle");
@@ -105,6 +106,8 @@ export const GET: RequestHandler = async () => {
 		id: r.id,
 		name: parseDisplayName(r.id),
 		host: r.name,
+		hostGroup: memberToGroup[r.name]?.label || "",
+		hostGroupIdx: memberToGroup[r.name]?.idx ?? sidebarGroups.length,
 		participants: getHuddleMembers(r.id),
 		startedAt: r.startedAt,
 	}));
