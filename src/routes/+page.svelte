@@ -1009,7 +1009,7 @@
 				<button class="control-btn" onclick={() => window.open('/wiki', '_blank')} title="Wiki">
 					<LucideLibrary width={14} height={14} style="color: #555;" />
 				</button>
-				<button class="control-btn" onclick={() => window.open('/bavaria', '_blank')} title="Bavaria">
+				<button class="control-btn" onclick={() => window.open('http://192.168.0.186:51750', '_blank')} title="Bavaria">
 					<LucideImages width={14} height={14} style="color: #555;" />
 				</button>
 				<button class="control-btn" onclick={() => window.open('/markwhen-fork.html', '_blank')} title="Timeline">
