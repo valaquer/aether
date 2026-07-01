@@ -50,7 +50,7 @@
 			if (!plain) continue;
 
 			if (msg.sender !== lastSender) {
-				tokens.push({ text: `-- ${msg.sender} --`, sender: msg.sender, isSenderLabel: true });
+				tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true });
 				lastSender = msg.sender;
 			}
 
@@ -119,11 +119,55 @@
 		timer = setTimeout(playNext, getDelay(token));
 	}
 
+	function jumpToIndex(idx: number) {
+		if (timer) clearTimeout(timer);
+		wordIndex = idx;
+		finished = false;
+		const token = tokens[wordIndex];
+		if (token) {
+			currentWord = token.text;
+			showingSender = token.isSenderLabel;
+			anchorIndex = token.isSenderLabel ? 0 : getAnchorIndex(token.text);
+			wordIndex++;
+		}
+		if (!paused) {
+			timer = setTimeout(playNext, getDelay(token));
+		}
+	}
+
+	function restartCurrentSpeaker() {
+		let idx = Math.max(0, wordIndex - 1);
+		while (idx > 0 && !tokens[idx].isSenderLabel) {
+			idx--;
+		}
+		if (tokens[idx]?.isSenderLabel) {
+			jumpToIndex(idx);
+		} else {
+			jumpToIndex(0);
+		}
+	}
+
+	function jumpToNextSpeaker() {
+		let idx = wordIndex;
+		while (idx < tokens.length && !tokens[idx].isSenderLabel) {
+			idx++;
+		}
+		if (idx < tokens.length) {
+			jumpToIndex(idx);
+		}
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.code === 'Space') {
 			e.preventDefault();
 			paused = !paused;
 			if (!paused && !finished) playNext();
+		} else if (e.code === 'ArrowLeft' && e.ctrlKey) {
+			e.preventDefault();
+			restartCurrentSpeaker();
+		} else if (e.code === 'ArrowRight' && e.ctrlKey) {
+			e.preventDefault();
+			jumpToNextSpeaker();
 		} else if (e.code === 'ArrowLeft') {
 			e.preventDefault();
 			wpm = Math.max(MIN_WPM, wpm - 50);
@@ -173,7 +217,6 @@
 
 <svelte:head>
 	<title>RSVP</title>
-	<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
 </svelte:head>
 
 <div class="rsvp-container">
@@ -208,6 +251,14 @@
 </div>
 
 <style>
+	@font-face {
+		font-family: 'Playfair Display';
+		src: url('/fonts/PlayfairDisplay.ttf') format('truetype');
+		font-weight: 100 900;
+		font-style: normal;
+		font-display: block;
+	}
+
 	:global(body) {
 		margin: 0;
 		padding: 0;
@@ -260,7 +311,7 @@
 		display: flex;
 		align-items: baseline;
 		white-space: nowrap;
-		font-family: 'Playfair Display', Georgia, serif;
+		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
 		font-size: 120px;
 		line-height: 1;
 	}
@@ -290,10 +341,9 @@
 	}
 
 	.sender-label {
-		font-family: 'Playfair Display', Georgia, serif;
+		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
 		font-size: 40px;
 		color: #7a5e4a;
-		font-style: italic;
 		white-space: nowrap;
 	}
 
@@ -301,7 +351,7 @@
 		position: fixed;
 		bottom: 40px;
 		right: 40px;
-		font-family: 'Playfair Display', Georgia, serif;
+		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
 		font-style: italic;
 		font-size: 28px;
 		color: #333;
@@ -327,7 +377,7 @@
 		bottom: 12px;
 		display: flex;
 		gap: 24px;
-		font-family: 'Playfair Display', Georgia, serif;
+		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
 		font-size: 12px;
 		color: #222;
 	}
