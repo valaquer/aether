@@ -16,9 +16,7 @@
 	import LucideBookmark from '~icons/lucide/bookmark';
 	import LucideArchive from '~icons/lucide/archive';
 	import LucideLibrary from '~icons/lucide/library';
-	import LucideImages from '~icons/lucide/images';
-	import LucideMilestone from '~icons/lucide/milestone';
-	import LucideConstruction from '~icons/lucide/construction';
+	import LucideLayoutGrid from '~icons/lucide/layout-grid';
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
 
@@ -136,6 +134,18 @@
 	let broadcastedMsgId = $state<string | null>(null);
 	let pulsingTeammates = $state<string[]>([]);
 	let activeAccount = $state("?");
+	let workbenchApps: { name: string; port: number | null; url?: string; icon: string }[] = $state([]);
+	let workbenchDropdownOpen = $state(false);
+	async function loadWorkbenchApps() {
+		try {
+			const r = await fetch("/api/workbench-apps");
+			if (r.ok) workbenchApps = await r.json();
+		} catch {}
+	}
+	function getAppUrl(app: { port: number | null; url?: string; name: string }) {
+		if (app.url) return app.url;
+		return `http://192.168.0.186:${app.port}`;
+	}
 	async function fetchActiveAccount() {
 		try {
 			const r = await fetch("/api/account-switch");
@@ -503,6 +513,7 @@
 		fetch("/api/livemirror-status").then(r => r.json()).then(d => { liveMirrorActive = d.active; }).catch(() => {});
 		fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {});
 		fetchActiveAccount();
+		loadWorkbenchApps();
 		connectEventSource();
 		pulsePoller = setInterval(() => {
 			fetch("/api/pulse").then(r => r.json()).then(d => {
@@ -605,6 +616,18 @@
 		}, 1000);
 	});
 
+	$effect(() => {
+		if (workbenchDropdownOpen) {
+			const close = (e: MouseEvent) => {
+				const target = e.target as HTMLElement;
+				if (!target.closest('.workbench-dropdown') && !target.closest('[title="Workbench apps"]')) {
+					workbenchDropdownOpen = false;
+				}
+			};
+			setTimeout(() => document.addEventListener('click', close), 0);
+			return () => document.removeEventListener('click', close);
+		}
+	});
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.ctrlKey && e.key === 'ArrowDown') {
 			e.preventDefault();
@@ -825,7 +848,7 @@
 <svelte:window onkeydown={handleKeydown} onmousemove={onRulerMouseMove} onmouseup={onRulerMouseUp} />
 
 
-<div style="display: grid; grid-template-columns: 350px calc(50vw - 685px) 570px 1fr 570px 1fr; height: 100vh;">
+<div style="display: grid; grid-template-columns: 280px calc(50vw - 615px) 570px 1fr 570px 1fr; height: 100vh;">
 	<!-- Sidebar -->
 	<div style="background: var(--color-bg-panel); border-right: 1px dashed var(--color-bg-step4); display: flex; flex-direction: column; height: 100vh; visibility: {focusMode ? 'hidden' : 'visible'};">
 		<div style="flex: 1; overflow-y: auto; font-family: var(--font-sans); font-size: 10px;">
@@ -1009,15 +1032,20 @@
 				<button class="control-btn" onclick={() => window.open('/wiki', '_blank')} title="Wiki">
 					<LucideLibrary width={14} height={14} style="color: #555;" />
 				</button>
-				<button class="control-btn" onclick={() => window.open('http://192.168.0.186:51750', '_blank')} title="Bavaria">
-					<LucideImages width={14} height={14} style="color: #555;" />
-				</button>
-				<button class="control-btn" onclick={() => window.open('/markwhen-fork.html', '_blank')} title="Timeline">
-					<LucideMilestone width={14} height={14} style="color: #555;" />
-				</button>
-				<button class="control-btn" onclick={() => window.open('http://192.168.0.186:51740', '_blank')} title="Workbench">
-					<LucideConstruction width={14} height={14} style="color: #555;" />
-				</button>
+				<span style="position: relative;">
+					<button class="control-btn" onclick={() => workbenchDropdownOpen = !workbenchDropdownOpen} title="Workbench apps">
+						<LucideLayoutGrid width={14} height={14} style="color: {workbenchDropdownOpen ? '#7a5e4a' : '#555'};" />
+					</button>
+					{#if workbenchDropdownOpen}
+						<div class="workbench-dropdown">
+							{#each workbenchApps as app}
+								<button class="workbench-dropdown-item" onclick={() => { window.open(getAppUrl(app), '_blank'); workbenchDropdownOpen = false; }}>
+									{app.name}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</span>
 				<button class="control-btn" onclick={nukeAll} disabled={nuking} title="Nuke — close all teammates and huddles">
 					<LucidePower width={14} height={14} style="color: {nuking ? '#7a5e4a' : '#555'};" />
 				</button>
@@ -1245,6 +1273,36 @@
 	}
 	.control-btn:hover {
 		opacity: 1;
+	}
+	.workbench-dropdown {
+		position: absolute;
+		bottom: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--color-bg-panel);
+		border: 1px solid var(--color-bg-step4);
+		border-radius: 4px;
+		padding: 4px 0;
+		min-width: 120px;
+		z-index: 100;
+		box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+	}
+	.workbench-dropdown-item {
+		display: block;
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		color: var(--color-text-muted);
+		font-family: var(--font-sans);
+		font-size: 11px;
+		padding: 6px 12px;
+		cursor: pointer;
+		transition: color 0.15s, background 0.15s;
+	}
+	.workbench-dropdown-item:hover {
+		color: var(--color-text);
+		background: var(--color-bg-element);
 	}
 	.queue-digits {
 		display: inline-flex;
