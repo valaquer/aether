@@ -49,10 +49,7 @@
 			const plain = stripMarkdown(msg.content);
 			if (!plain) continue;
 
-			if (msg.sender !== lastSender) {
-				tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true });
-				lastSender = msg.sender;
-			}
+			tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true });
 
 			const words = plain.split(/\s+/).filter(Boolean);
 			for (const word of words) {
