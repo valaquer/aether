@@ -135,8 +135,9 @@
 		}
 	}
 
-	function restartCurrentSpeaker() {
-		let idx = Math.max(0, wordIndex - 1);
+	function jumpToPrevSpeaker() {
+		let idx = Math.max(0, wordIndex - 2);
+		if (tokens[idx]?.isSenderLabel) idx--;
 		while (idx > 0 && !tokens[idx].isSenderLabel) {
 			idx--;
 		}
@@ -164,7 +165,7 @@
 			if (!paused && !finished) playNext();
 		} else if (e.code === 'ArrowLeft' && e.ctrlKey) {
 			e.preventDefault();
-			restartCurrentSpeaker();
+			jumpToPrevSpeaker();
 		} else if (e.code === 'ArrowRight' && e.ctrlKey) {
 			e.preventDefault();
 			jumpToNextSpeaker();
