@@ -19,6 +19,7 @@
 	import LucideLayoutGrid from '~icons/lucide/layout-grid';
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
+	import LucideZap from '~icons/lucide/zap';
 
 	onMount(() => {
 		document.addEventListener('click', (e) => {
@@ -982,6 +983,7 @@
 							<span class="msg-actions">
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
+								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(msg.id)}`, '_blank')} title="Speed read from here" style="color: #555;"><LucideZap width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
 							</span>
 						</div>
