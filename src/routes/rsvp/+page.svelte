@@ -4,10 +4,10 @@
 	let { data } = $props();
 
 	const MIN_WPM = 100;
-	const MAX_WPM = 800;
+	const MAX_WPM = 200;
 	const LONG_TOKEN_THRESHOLD = 15;
 
-	let wpm = $state(300);
+	let wpm = $state(150);
 	let paused = $state(false);
 	let currentWord = $state('');
 	let anchorIndex = $state(0);
@@ -168,10 +168,10 @@
 			jumpToNextSpeaker();
 		} else if (e.code === 'ArrowLeft') {
 			e.preventDefault();
-			wpm = Math.max(MIN_WPM, wpm - 50);
+			wpm = Math.max(MIN_WPM, wpm - 25);
 		} else if (e.code === 'ArrowRight') {
 			e.preventDefault();
-			wpm = Math.min(MAX_WPM, wpm + 50);
+			wpm = Math.min(MAX_WPM, wpm + 25);
 		} else if (e.code === 'Escape') {
 			e.preventDefault();
 			try { window.close(); } catch {}

@@ -4,7 +4,7 @@ import { getAliveTeammates } from "$lib/server/kitten";
 import fs from "fs";
 
 const CSV_PATH =
-	"/Users/deepak-macmini/honeybloom/library/skills/gestalt-layer-3-janus/janus-config.csv";
+	"/Users/deepak-macmini/honeybloom/library/skills/runbook-janus-coding/janus-config.csv";
 const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
 
 function parseDisplayName(roomId: string): string {
@@ -22,7 +22,9 @@ function loadModelMap(): Record<string, string> {
 		for (let i = 1; i < lines.length; i++) {
 			const cols = lines[i].split(",");
 			if (cols.length >= 3) {
-				modelMap[cols[0].trim().toLowerCase()] = cols[2].trim();
+				const raw = cols[2].trim();
+				const short = raw === "Opus 4.6" ? "4.6" : raw === "DeepSeek V4 Flash" ? "v4" : raw;
+				modelMap[cols[0].trim().toLowerCase()] = short;
 			}
 		}
 		return modelMap;
