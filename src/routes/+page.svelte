@@ -1004,6 +1004,9 @@
 				<div></div>
 				<div class="control-strip">
 					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} class:cop-car={miniPressure} title={miniPressure ? "Mini under pressure" : "Live mirror"}></span>
+				<button class="control-btn" onclick={nukeAll} disabled={nuking} title="Nuke — close all teammates and huddles">
+					<LucidePower width={14} height={14} style="color: {nuking ? '#7a5e4a' : '#555'};" />
+				</button>
 				<button class="control-btn" onclick={() => { if (rewindIndex !== null) { if (rewindIndex > 0) { rewindIndex--; saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } } else { rewindIndex = Math.max(0, chatMessages.length - 2); saveRewindPosition(selectedConvId, chatMessages[rewindIndex].id); if (messagesContainer) messagesContainer.scrollTop = 0; } }} title="Rewind">
 						<LucideRewind width={14} height={14} style="color: #555;" />
 				</button>
@@ -1056,9 +1059,6 @@
 				</span>
 				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { localStorage.setItem('rsvp-paste-text', text); window.open('/rsvp?mode=paste', '_blank'); } }} title="Speed read input bar text" style="color: #555;">
 						<LucideGauge width={14} height={14} />
-				</button>
-				<button class="control-btn" onclick={nukeAll} disabled={nuking} title="Nuke — close all teammates and huddles">
-					<LucidePower width={14} height={14} style="color: {nuking ? '#7a5e4a' : '#555'};" />
 				</button>
 				</div>
 			</div>
