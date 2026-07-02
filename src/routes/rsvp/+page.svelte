@@ -178,7 +178,33 @@
 		}
 	}
 
+	function tokenizePasteText(text: string): Token[] {
+		const plain = stripMarkdown(text);
+		if (!plain) return [];
+		const words = plain.split(/\s+/).filter(Boolean);
+		return words.map(w => ({ text: w, sender: '', isSenderLabel: false }));
+	}
+
 	onMount(() => {
+		if (data.pasteMode) {
+			const pasteText = localStorage.getItem('rsvp-paste-text');
+			localStorage.removeItem('rsvp-paste-text');
+			if (!pasteText?.trim()) {
+				currentWord = 'No text to read';
+				finished = true;
+				return;
+			}
+			tokens = tokenizePasteText(pasteText);
+			if (tokens.length === 0) {
+				currentWord = 'No readable content';
+				finished = true;
+				return;
+			}
+			document.addEventListener('keydown', handleKeydown);
+			playNext();
+			return;
+		}
+
 		if (data.error || data.messages.length === 0) {
 			currentWord = data.error || 'No messages';
 			finished = true;

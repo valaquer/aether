@@ -1054,6 +1054,9 @@
 						</div>
 					{/if}
 				</span>
+				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { localStorage.setItem('rsvp-paste-text', text); window.open('/rsvp?mode=paste', '_blank'); } }} title="Speed read input bar text" style="color: #555;">
+						<LucideGauge width={14} height={14} />
+				</button>
 				<button class="control-btn" onclick={nukeAll} disabled={nuking} title="Nuke — close all teammates and huddles">
 					<LucidePower width={14} height={14} style="color: {nuking ? '#7a5e4a' : '#555'};" />
 				</button>

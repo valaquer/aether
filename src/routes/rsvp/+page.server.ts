@@ -5,6 +5,12 @@ export const load: PageServerLoad = async ({ url }) => {
 	const roomId = url.searchParams.get("roomId");
 	const startFrom = url.searchParams.get("startFrom");
 
+	const mode = url.searchParams.get("mode");
+
+	if (mode === "paste") {
+		return { messages: [], error: null, pasteMode: true };
+	}
+
 	if (!roomId) {
 		return { messages: [], error: "Missing roomId" };
 	}
