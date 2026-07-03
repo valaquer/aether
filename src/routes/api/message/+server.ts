@@ -82,7 +82,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Huddle token: must hold token to post
-	if (resolvedRoom.startsWith("huddle-") && sender !== "boss" && sender !== "system") {
+	if (resolvedRoom.startsWith("huddle-") && sender !== "boss" && sender !== "system" && sender !== "jeh") {
 		const holder = getTokenHolder(resolvedRoom);
 		if (holder !== sender) {
 			return new Response(

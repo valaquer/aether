@@ -20,6 +20,7 @@
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
 	import LucideGauge from '~icons/lucide/gauge';
+	import LucideSparkles from '~icons/lucide/sparkles';
 
 	onMount(() => {
 		document.addEventListener('click', (e) => {
@@ -135,8 +136,9 @@
 	let broadcastedMsgId = $state<string | null>(null);
 	let pulsingTeammates = $state<string[]>([]);
 	let activeAccount = $state("?");
-	let workbenchApps: { name: string; port: number | null; url?: string; icon: string }[] = $state([]);
+	let workbenchApps: { name: string; port: number | null; url?: string; icon: string; path?: string }[] = $state([]);
 	let workbenchDropdownOpen = $state(false);
+	let workbenchStarting = $state<string | null>(null);
 	async function loadWorkbenchApps() {
 		try {
 			const r = await fetch("/api/workbench-apps");
@@ -146,6 +148,16 @@
 	function getAppUrl(app: { port: number | null; url?: string; name: string }) {
 		if (app.url) return app.url;
 		return `http://192.168.0.186:${app.port}`;
+	}
+	async function launchWorkbenchApp(app: typeof workbenchApps[0]) {
+		if (app.url) { window.open(app.url, '_blank'); workbenchDropdownOpen = false; return; }
+		workbenchStarting = app.name;
+		try {
+			await fetch('/api/start-workbench-app', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: app.port, path: app.path }) });
+		} catch {}
+		window.open(getAppUrl(app), '_blank');
+		workbenchDropdownOpen = false;
+		workbenchStarting = null;
 	}
 	async function fetchActiveAccount() {
 		try {
@@ -783,6 +795,26 @@
 	let copyFlashMsgId = $state("");
 	let printFlashRoom = $state("");
 	let printFlashMsgId = $state("");
+	let analyzeFlashMsgId = $state("");
+	let analyzing = $state(false);
+	async function analyzeChunk(msg: { id: string }) {
+		if (analyzing) return;
+		analyzing = true;
+		analyzeFlashMsgId = msg.id;
+		try {
+			const r = await fetch('/api/analyze-chunk', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ roomId: selectedConvId, messageId: msg.id })
+			});
+			const data = await r.json();
+			if (!r.ok) console.error('[analyze-chunk]', data.error);
+		} catch (e) {
+			console.error('[analyze-chunk]', e);
+		}
+		setTimeout(() => { analyzeFlashMsgId = ""; }, 1500);
+		analyzing = false;
+	}
 	let archiveFlashName = $state("");
 	let archiveFlashRoom = $state("");
 	let archivingTeammates = $state(new Set<string>());
@@ -991,6 +1023,9 @@
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(msg.id)}`, '_blank')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
+								{#if selectedConvId?.startsWith('huddle-')}
+									<button class="control-btn" disabled={analyzing} onclick={() => analyzeChunk(msg)} title="Send chunk to Jeh for analysis" style="color: {analyzeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideSparkles width={14} height={14} /></button>
+								{/if}
 							</span>
 						</div>
 					{/each}
@@ -1050,8 +1085,8 @@
 					{#if workbenchDropdownOpen}
 						<div class="workbench-dropdown">
 							{#each workbenchApps as app}
-								<button class="workbench-dropdown-item" onclick={() => { window.open(getAppUrl(app), '_blank'); workbenchDropdownOpen = false; }}>
-									{app.name}
+								<button class="workbench-dropdown-item" disabled={workbenchStarting !== null} onclick={() => launchWorkbenchApp(app)}>
+									{workbenchStarting === app.name ? 'Starting...' : app.name}
 								</button>
 							{/each}
 						</div>
