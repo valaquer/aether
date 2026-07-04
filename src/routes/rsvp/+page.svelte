@@ -4,10 +4,9 @@
 	let { data } = $props();
 
 	const MIN_WPM = 100;
-	const MAX_WPM = 200;
-	const LONG_TOKEN_THRESHOLD = 15;
+	const MAX_WPM = 300;
 
-	let wpm = $state(150);
+	let wpm = $state(175);
 	let paused = $state(false);
 	let currentWord = $state('');
 	let anchorIndex = $state(0);
@@ -83,31 +82,8 @@
 	}
 
 	function getDelay(token: Token): number {
-		const baseDelay = 60000 / wpm;
-
-		if (token.isSenderLabel) return 1000;
-
-		let multiplier = 1;
-		const text = token.text;
-		const lastChar = text[text.length - 1];
-
-		if (lastChar === '.' || lastChar === '?' || lastChar === '!') {
-			multiplier = 2;
-		} else if (lastChar === ',' || lastChar === ':' || lastChar === ';') {
-			multiplier = 1.5;
-		}
-
-		if (text.length > LONG_TOKEN_THRESHOLD) {
-			multiplier = Math.max(multiplier, 1 + (text.length - LONG_TOKEN_THRESHOLD) * 0.1);
-		}
-
-		const wordDelay = baseDelay * multiplier;
-
-		if (token.isParagraphEnd || token.isMessageEnd) {
-			return wordDelay + 3000;
-		}
-
-		return wordDelay;
+		if (token.isSenderLabel) return 2000;
+		return 60000 / wpm;
 	}
 
 	let tokens: Token[] = [];
@@ -294,10 +270,11 @@
 	let beforeAnchor = $derived(showingSender ? '' : currentWord.slice(0, anchorIndex));
 	let anchorChar = $derived(showingSender ? '' : currentWord[anchorIndex] || '');
 	let afterAnchor = $derived(showingSender ? '' : currentWord.slice(anchorIndex + 1));
+	let wordFontSize = $derived(currentWord.length > 10 ? Math.max(40, 120 - (currentWord.length - 10) * 6) : 120);
 </script>
 
 <svelte:head>
-	<title>RSVP</title>
+	<title>Speed Reader</title>
 </svelte:head>
 
 <div class="rsvp-container">
@@ -310,7 +287,7 @@
 			<span class="sender-label">{currentWord}</span>
 		</div>
 	{:else}
-		<div class="word-display">
+		<div class="word-display" style="font-size: {wordFontSize}px">
 			<span class="word-before">{beforeAnchor}</span><span class="word-anchor">{anchorChar}</span><span class="word-after">{afterAnchor}</span>
 		</div>
 	{/if}
@@ -393,7 +370,6 @@
 		align-items: baseline;
 		white-space: nowrap;
 		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
-		font-size: 120px;
 		line-height: 1;
 	}
 

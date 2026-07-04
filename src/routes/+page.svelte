@@ -15,7 +15,6 @@
 	import LucideFiles from '~icons/lucide/files';
 	import LucideBookmark from '~icons/lucide/bookmark';
 	import LucideArchive from '~icons/lucide/archive';
-	import LucideLibrary from '~icons/lucide/library';
 	import LucideLayoutGrid from '~icons/lucide/layout-grid';
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
@@ -795,6 +794,14 @@
 	let copyFlashMsgId = $state("");
 	let printFlashRoom = $state("");
 	let printFlashMsgId = $state("");
+	function findBossAnchor(msg: { id: string }): string {
+		const idx = chatMessages.findIndex(m => m.id === msg.id);
+		if (idx === -1) return msg.id;
+		let i = idx;
+		while (i >= 0 && chatMessages[i].sender !== 'boss') i--;
+		return i >= 0 ? chatMessages[i].id : chatMessages[0].id;
+	}
+
 	let analyzeFlashMsgId = $state("");
 	let analyzing = $state(false);
 	async function analyzeChunk(msg: { id: string }) {
@@ -1022,7 +1029,7 @@
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(msg.id)}`, '_blank')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
+								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(findBossAnchor(msg))}`, '_blank')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
 								{#if selectedConvId?.startsWith('huddle-')}
 									<button class="control-btn" disabled={analyzing} onclick={() => analyzeChunk(msg)} title="Send chunk to Jeh for analysis" style="color: {analyzeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideSparkles width={14} height={14} /></button>
 								{/if}
@@ -1075,9 +1082,6 @@
 							<LucideMaximize2 width={14} height={14} style="color: #555;" />
 						{/if}
 					</button>
-				<button class="control-btn" onclick={() => window.open('/wiki', '_blank')} title="Wiki">
-					<LucideLibrary width={14} height={14} style="color: #555;" />
-				</button>
 				<span style="position: relative;">
 					<button class="control-btn" onclick={() => workbenchDropdownOpen = !workbenchDropdownOpen} title="Workbench apps">
 						<LucideLayoutGrid width={14} height={14} style="color: {workbenchDropdownOpen ? '#7a5e4a' : '#555'};" />
