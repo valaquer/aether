@@ -30,9 +30,10 @@ export const load: PageServerLoad = async ({ url }) => {
 	}
 
 	const messages = allMessages.slice(startIndex).map((m) => ({
+		id: m.id,
 		sender: m.sender,
 		content: m.content,
 	}));
 
-	return { messages, error: null };
+	return { messages, error: null, roomId };
 };

@@ -20,6 +20,8 @@
 		text: string;
 		sender: string;
 		isSenderLabel: boolean;
+		isParagraphEnd: boolean;
+		isMessageEnd: boolean;
 	}
 
 	function stripMarkdown(text: string): string {
@@ -43,17 +45,27 @@
 
 	function tokenize(messages: { sender: string; content: string }[]): Token[] {
 		const tokens: Token[] = [];
-		let lastSender = '';
 
 		for (const msg of messages) {
-			const plain = stripMarkdown(msg.content);
-			if (!plain) continue;
+			const paragraphs = msg.content.split(/\n{2,}/).map(p => stripMarkdown(p)).filter(Boolean);
+			if (paragraphs.length === 0) continue;
 
-			tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true });
+			tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true, isParagraphEnd: false, isMessageEnd: false });
 
-			const words = plain.split(/\s+/).filter(Boolean);
-			for (const word of words) {
-				tokens.push({ text: word, sender: msg.sender, isSenderLabel: false });
+			for (let pi = 0; pi < paragraphs.length; pi++) {
+				const words = paragraphs[pi].split(/\s+/).filter(Boolean);
+				const isLastParagraph = pi === paragraphs.length - 1;
+
+				for (let wi = 0; wi < words.length; wi++) {
+					const isLastWord = wi === words.length - 1;
+					tokens.push({
+						text: words[wi],
+						sender: msg.sender,
+						isSenderLabel: false,
+						isParagraphEnd: isLastWord && !isLastParagraph,
+						isMessageEnd: isLastWord && isLastParagraph,
+					});
+				}
 			}
 		}
 
@@ -89,21 +101,48 @@
 			multiplier = Math.max(multiplier, 1 + (text.length - LONG_TOKEN_THRESHOLD) * 0.1);
 		}
 
-		return baseDelay * multiplier;
+		const wordDelay = baseDelay * multiplier;
+
+		if (token.isParagraphEnd || token.isMessageEnd) {
+			return wordDelay + 3000;
+		}
+
+		return wordDelay;
 	}
 
 	let tokens: Token[] = [];
+	let lastMessageId = '';
+	let roomId = '';
 
-	function playNext() {
+	async function checkForNewMessages(): Promise<boolean> {
+		if (!roomId || !lastMessageId) return false;
+		try {
+			const res = await fetch(`/api/rsvp-check?roomId=${encodeURIComponent(roomId)}&after=${encodeURIComponent(lastMessageId)}`);
+			if (!res.ok) return false;
+			const data = await res.json();
+			if (data.messages && data.messages.length > 0) {
+				const newTokens = tokenize(data.messages);
+				tokens = [...tokens, ...newTokens];
+				lastMessageId = data.messages[data.messages.length - 1].id;
+				return true;
+			}
+		} catch {}
+		return false;
+	}
+
+	async function playNext() {
 		if (paused) return;
 		if (wordIndex >= tokens.length) {
+			const found = await checkForNewMessages();
+			if (found) {
+				playNext();
+				return;
+			}
 			finished = true;
 			currentWord = 'end';
 			anchorIndex = 0;
 			showingSender = false;
-			timer = setTimeout(() => {
-				try { window.close(); } catch {}
-			}, 3000);
+			try { window.close(); } catch {}
 			return;
 		}
 
@@ -179,10 +218,26 @@
 	}
 
 	function tokenizePasteText(text: string): Token[] {
-		const plain = stripMarkdown(text);
-		if (!plain) return [];
-		const words = plain.split(/\s+/).filter(Boolean);
-		return words.map(w => ({ text: w, sender: '', isSenderLabel: false }));
+		const paragraphs = text.split(/\n{2,}/).map(p => stripMarkdown(p)).filter(Boolean);
+		const tokens: Token[] = [];
+
+		for (let pi = 0; pi < paragraphs.length; pi++) {
+			const words = paragraphs[pi].split(/\s+/).filter(Boolean);
+			const isLastParagraph = pi === paragraphs.length - 1;
+
+			for (let wi = 0; wi < words.length; wi++) {
+				const isLastWord = wi === words.length - 1;
+				tokens.push({
+					text: words[wi],
+					sender: '',
+					isSenderLabel: false,
+					isParagraphEnd: isLastWord && !isLastParagraph,
+					isMessageEnd: isLastWord && isLastParagraph,
+				});
+			}
+		}
+
+		return tokens;
 	}
 
 	onMount(() => {
@@ -211,6 +266,8 @@
 			return;
 		}
 
+		roomId = data.roomId || '';
+		lastMessageId = data.messages[data.messages.length - 1]?.id || '';
 		tokens = tokenize(data.messages);
 
 		if (tokens.length === 0) {
