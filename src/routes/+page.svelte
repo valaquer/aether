@@ -2,7 +2,7 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { renderMd, renderToolCard } from './renderUtils';
 	import { fallbackCopyText, copyRoom as _copyRoom, copyMessage as _copyMessage, printRoom as _printRoom, printMessage as _printMessage } from './clipboardUtils';
-	import { type Bookmark, getBookmarks, setBookmarks, getEditingBookmarkId, setEditingBookmarkId, getEditingBookmarkName, setEditingBookmarkName, getPendingScrollMessageId, setPendingScrollMessageId, loadBookmarks, toggleBookmark, commitBookmarkName } from './bookmarkStore.svelte';
+	import { type Bookmark, getBookmarks, setBookmarks, getEditingBookmarkId, setEditingBookmarkId, getEditingBookmarkName, setEditingBookmarkName, getPendingScrollMessageId, setPendingScrollMessageId, getPendingPrintMessageId, setPendingPrint, cancelPendingPrint, loadBookmarks, toggleBookmark, commitBookmarkName } from './bookmarkStore.svelte';
 	import { getShowRuler, toggleRuler, getRulerX, getRulerY, getDragging, onRulerMouseDown, onRulerMouseMove, onRulerMouseUp } from './rulerStore.svelte';
 	import LucideRewind from '~icons/lucide/rewind';
 	import LucidePlay from '~icons/lucide/play';
@@ -879,9 +879,16 @@
 	async function printMessage(msg: any) {
 		if (printFlashMsgId === msg.id) return;
 		printFlashMsgId = msg.id;
-		const id = await _printMessage(msg, selectedConvId);
-		if (id) { setTimeout(() => { printFlashMsgId = ""; }, 1500); }
-		else { printFlashMsgId = ""; }
+		setTimeout(() => { printFlashMsgId = ""; }, 1500);
+
+		const existingBm = getBookmarks().find(bm => bm.messageId === msg.id);
+		if (existingBm) {
+			setEditingBookmarkId(existingBm.id);
+			setEditingBookmarkName(existingBm.name);
+		} else {
+			await toggleBookmark(msg, selectedConvId);
+		}
+		setPendingPrint(msg.id, selectedConvId);
 	}
 
 	// Ruler — state + handlers in rulerStore.svelte.ts
@@ -971,8 +978,8 @@
 								value={editingBookmarkName}
 								oninput={(e) => setEditingBookmarkName(e.currentTarget.value)}
 								placeholder="Type bookmark name"
-								onkeydown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); commitBookmarkName(bm); } }}
-								onblur={() => commitBookmarkName(bm)}
+								onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commitBookmarkName(bm); } else if (e.key === 'Escape') { e.preventDefault(); cancelPendingPrint(); commitBookmarkName(bm); } }}
+								onblur={() => { cancelPendingPrint(); commitBookmarkName(bm); }}
 								style="background: transparent; border: none; outline: none; color: var(--color-text); font-family: var(--font-sans); font-size: inherit; width: 100%; padding: 0; text-transform: lowercase;"
 								use:autofocusInput
 							/>

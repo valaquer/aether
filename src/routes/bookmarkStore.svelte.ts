@@ -4,6 +4,8 @@ let bookmarks = $state<Bookmark[]>([]);
 let editingBookmarkId = $state<string | null>(null);
 let editingBookmarkName = $state("");
 let pendingScrollMessageId = $state<string | null>(null);
+let pendingPrintMessageId = $state<string | null>(null);
+let pendingPrintRoomId = $state<string | null>(null);
 
 export function getBookmarks() { return bookmarks; }
 export function setBookmarks(val: Bookmark[]) { bookmarks = val; }
@@ -13,6 +15,9 @@ export function getEditingBookmarkName() { return editingBookmarkName; }
 export function setEditingBookmarkName(val: string) { editingBookmarkName = val; }
 export function getPendingScrollMessageId() { return pendingScrollMessageId; }
 export function setPendingScrollMessageId(val: string | null) { pendingScrollMessageId = val; }
+export function getPendingPrintMessageId() { return pendingPrintMessageId; }
+export function setPendingPrint(messageId: string | null, roomId: string | null) { pendingPrintMessageId = messageId; pendingPrintRoomId = roomId; }
+export function getPendingPrintRoomId() { return pendingPrintRoomId; }
 
 export async function loadBookmarks() {
 	try {
@@ -62,4 +67,22 @@ export function commitBookmarkName(bm: Bookmark) {
 	editingBookmarkId = null;
 	editingBookmarkName = "";
 	bookmarks = [...bookmarks];
+
+	if (pendingPrintMessageId === bm.messageId && pendingPrintRoomId) {
+		const title = bm.name;
+		const roomId = pendingPrintRoomId;
+		const messageId = pendingPrintMessageId;
+		pendingPrintMessageId = null;
+		pendingPrintRoomId = null;
+		fetch("/api/print", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ roomId, messageId, title }),
+		}).catch(() => {});
+	}
+}
+
+export function cancelPendingPrint() {
+	pendingPrintMessageId = null;
+	pendingPrintRoomId = null;
 }

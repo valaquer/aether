@@ -28,9 +28,11 @@ export async function POST({ request }: { request: Request }) {
 			return json({ status: 'failed', reason: 'Missing port or path' }, { status: 400 });
 		}
 
-		if (await isPortListening(port)) {
-			return json({ status: 'running' });
-		}
+		// Kill existing server if running
+		await new Promise<void>((resolve) => {
+			exec(`lsof -ti :${port} | xargs kill -9 2>/dev/null`, () => resolve());
+		});
+		await new Promise((r) => setTimeout(r, 500));
 
 		const appDir = `${HOMEDIR}/${path}`;
 

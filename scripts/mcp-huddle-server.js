@@ -2,7 +2,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { writeFileSync } from "fs";
 
 const AETHER_URL = process.env.AETHER_URL || "http://localhost:51730";
 
@@ -88,7 +87,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 		{
 			name: "read_room",
 			description:
-				"Read the message history of any room (direct, huddle, or past). Writes to a file - use Read to view it.",
+				"Read the message history of any room (direct, huddle, or past). Returns content directly.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -208,11 +207,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 						return `${header}\n${msgs}`;
 					})
 					.join("\n\n");
-				const filePath = `/tmp/room-${args.roomId}.md`;
-				writeFileSync(filePath, formatted || "No messages found for this room.");
 				return {
 					content: [
-						{ type: "text", text: `Room history written to ${filePath} — use Read to view it.` },
+						{ type: "text", text: formatted || "No messages found for this room." },
 					],
 				};
 			} catch (err) {

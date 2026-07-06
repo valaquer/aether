@@ -10,7 +10,7 @@ const PRINTER = "Brother_HL_L2400DWE";
 const PANDOC = "/opt/homebrew/bin/pandoc";
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { roomId, messageId } = await request.json();
+	const { roomId, messageId, title } = await request.json();
 	if (!roomId) {
 		return new Response(JSON.stringify({ error: "Missing roomId" }), { status: 400 });
 	}
@@ -32,9 +32,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	const dateStr = now.toISOString().slice(0, 10);
 	const timeStr = now.toTimeString().slice(0, 5).replace(":", "");
 
-	const header = messageId
-		? `# Message from ${messages[0].sender}\n\n*Printed from ${roomLabel} on ${dateStr}*\n`
-		: `# ${roomLabel}\n\n*Printed on ${dateStr}*\n`;
+	const header = title
+		? `# ${title}\n\n*${messages[0].sender} — printed from ${roomLabel} on ${dateStr}*\n`
+		: messageId
+			? `# Message from ${messages[0].sender}\n\n*Printed from ${roomLabel} on ${dateStr}*\n`
+			: `# ${roomLabel}\n\n*Printed on ${dateStr}*\n`;
 
 	const body = messages
 		.map((m) => {
