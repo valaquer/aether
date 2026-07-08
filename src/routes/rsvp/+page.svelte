@@ -223,7 +223,7 @@
 
 	async function postAnnotations() {
 		if (annotations.length === 0 || !roomId) return;
-		const annotationBody = annotations.map(a => `on '${a.selectedText}': ${a.comment}`).join('\n');
+		const annotationBody = "Boss's feedback:\n" + annotations.map(a => `on '${a.selectedText}': ${a.comment}`).join('\n');
 		try {
 			await fetch('/api/message', {
 				method: 'POST',
