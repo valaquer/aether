@@ -4,7 +4,7 @@
 	let { data } = $props();
 
 	const MIN_SPEED = 1;
-	const MAX_SPEED = 100;
+	const MAX_SPEED = 1000;
 	const CONTEXT_LINES = 3;
 
 	let speed = $state(50);
@@ -256,10 +256,10 @@
 			if (currentLineIndex < lines.length - 1) goToLine(currentLineIndex + 1);
 		} else if (e.code === 'ArrowLeft') {
 			e.preventDefault();
-			speed = Math.max(MIN_SPEED, speed - 5);
+			speed = Math.max(MIN_SPEED, speed - 50);
 		} else if (e.code === 'ArrowRight') {
 			e.preventDefault();
-			speed = Math.min(MAX_SPEED, speed + 5);
+			speed = Math.min(MAX_SPEED, speed + 50);
 		} else if (e.code === 'Escape') {
 			e.preventDefault();
 			try { window.close(); } catch {}
