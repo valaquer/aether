@@ -19,10 +19,21 @@
 		isSenderLabel: boolean;
 	}
 
+	interface Annotation {
+		selectedText: string;
+		comment: string;
+	}
+
 	let lines: Line[] = $state([]);
 	let lastMessageId = '';
 	let roomId = '';
 	let measureContainer: HTMLDivElement | null = null;
+	let annotations: Annotation[] = $state([]);
+	let annotating = $state(false);
+	let annotationSelection = $state('');
+	let annotationComment = $state('');
+	let annotationInput: HTMLInputElement | null = null;
+	let wasScrollingBeforeAnnotation = false;
 
 	function stripMarkdown(text: string): string {
 		let s = text;
@@ -144,6 +155,7 @@
 			}
 			finished = true;
 			scrolling = false;
+			await postAnnotations();
 			setTimeout(() => { try { window.close(); } catch {} }, 3000);
 			return;
 		}
@@ -171,6 +183,54 @@
 		let idx = currentLineIndex + 1;
 		while (idx < lines.length && !lines[idx].isSenderLabel) idx++;
 		if (idx < lines.length) goToLine(idx);
+	}
+
+	function handleSelection() {
+		if (annotating || finished) return;
+		const sel = window.getSelection();
+		const text = sel?.toString().trim();
+		if (!text) return;
+		wasScrollingBeforeAnnotation = scrolling;
+		if (scrolling) {
+			scrolling = false;
+			if (timer) clearTimeout(timer);
+		}
+		annotationSelection = text;
+		annotationComment = '';
+		annotating = true;
+		sel?.removeAllRanges();
+		setTimeout(() => annotationInput?.focus(), 50);
+	}
+
+	function submitAnnotation() {
+		if (annotationComment.trim()) {
+			annotations.push({ selectedText: annotationSelection, comment: annotationComment.trim() });
+		}
+		annotating = false;
+		annotationSelection = '';
+		annotationComment = '';
+		scrolling = true;
+		timer = setTimeout(advance, getLineDelay());
+	}
+
+	function cancelAnnotation() {
+		annotating = false;
+		annotationSelection = '';
+		annotationComment = '';
+		scrolling = true;
+		timer = setTimeout(advance, getLineDelay());
+	}
+
+	async function postAnnotations() {
+		if (annotations.length === 0 || !roomId) return;
+		const annotationBody = annotations.map(a => `on '${a.selectedText}': ${a.comment}`).join('\n');
+		try {
+			await fetch('/api/message', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ sender: 'boss', room: roomId, body: annotationBody }),
+			});
+		} catch {}
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -304,13 +364,31 @@
 ></div>
 
 <div class="teleprompter-container">
-	<div class="current-line" style="top: 40vh;">
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="current-line" style="top: 40vh;" onmouseup={handleSelection}>
 		{#if finished}
 			<span class="end-display">end</span>
 		{:else if lines[currentLineIndex]}
 			{lines[currentLineIndex].text}
 		{/if}
 	</div>
+
+	{#if annotating}
+		<div class="annotation-box" style="top: calc(40vh + 40px);">
+			<div class="annotation-label">on '{annotationSelection}':</div>
+			<input
+				bind:this={annotationInput}
+				bind:value={annotationComment}
+				class="annotation-input"
+				placeholder="Your comment..."
+				onkeydown={(e) => {
+					if (e.code === 'Enter') { e.preventDefault(); submitAnnotation(); }
+					else if (e.code === 'Escape') { e.preventDefault(); cancelAnnotation(); }
+					e.stopPropagation();
+				}}
+			/>
+		</div>
+	{/if}
 
 	<div class="speed-display">
 		{scrolling ? `speed: ${speed}` : 'PAUSED'}
@@ -362,6 +440,7 @@
 	}
 
 	.current-line {
+		user-select: text;
 		position: absolute;
 		left: 50%;
 		transform: translate(-50%, -50%);
@@ -371,9 +450,6 @@
 		line-height: 1.8;
 		color: #CDCCC2;
 		text-align: center;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 
 	.end-display {
@@ -404,6 +480,36 @@
 		height: 100%;
 		background: #7a5e4a;
 		transition: width 0.1s linear;
+	}
+
+	.annotation-box {
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 450px;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.annotation-label {
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
+		font-size: 11px;
+		color: #808080;
+	}
+
+	.annotation-input {
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
+		font-size: 12px;
+		color: #CDCCC2;
+		background: #0b0d10;
+		border: 1px dashed #282a30;
+		padding: 8px 12px;
+		outline: none;
+	}
+
+	.annotation-input::placeholder {
+		color: #444;
 	}
 
 	.help {
