@@ -1,6 +1,6 @@
 import { exec, execFile } from "child_process";
 import { promisify } from "util";
-import { readdirSync, existsSync } from "fs";
+import { readdirSync, existsSync, appendFileSync } from "fs";
 import os from "os";
 
 const execFileAsync = promisify(execFile);
@@ -160,6 +160,12 @@ export function sendToKitty(
 				await runKittenCmd(keyArgs, 3000);
 
 				result = "delivered";
+
+				// Write to inbox file for OpenCode teammates (Medusa reads this)
+				try {
+					const inboxLine = JSON.stringify({ sender: payload.sender, room: payload.room, body: payload.body, timestamp: payload.timestamp }) + "\n";
+					appendFileSync(`/tmp/opencode-inbox-${teammate}.jsonl`, inboxLine);
+				} catch {}
 			} finally {
 				// Clean up temp file on iMac
 				exec(`${IMAC_SSH} "rm -f '${tmpFile}'"`, { timeout: 3000 });
