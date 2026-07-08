@@ -1036,7 +1036,7 @@
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(findBossAnchor(msg))}`, '_blank')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
+								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(findBossAnchor(msg))}`, 'speedreader')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
 								{#if selectedConvId?.startsWith('huddle-')}
 									<button class="control-btn" disabled={analyzing} onclick={() => analyzeChunk(msg)} title="Send chunk to Jeh for analysis" style="color: {analyzeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideSparkles width={14} height={14} /></button>
 								{/if}
@@ -1103,7 +1103,7 @@
 						</div>
 					{/if}
 				</span>
-				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { localStorage.setItem('rsvp-paste-text', text); window.open('/rsvp?mode=paste', '_blank'); } }} title="Speed read input bar text" style="color: #555;">
+				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { localStorage.setItem('rsvp-paste-text', text); window.open('/rsvp?mode=paste', 'speedreader'); } }} title="Speed read input bar text" style="color: #555;">
 						<LucideGauge width={14} height={14} />
 				</button>
 				</div>
