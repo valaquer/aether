@@ -3,29 +3,30 @@
 
 	let { data } = $props();
 
-	const MIN_WPM = 100;
-	const MAX_WPM = 300;
+	const MIN_SPEED = 1;
+	const MAX_SPEED = 100;
+	const CONTEXT_LINES = 3;
 
-	let wpm = $state(175);
-	let paused = $state(false);
-	let currentWord = $state('');
-	let anchorIndex = $state(0);
-	let showingSender = $state(false);
-	let wordIndex = $state(0);
+	let speed = $state(50);
+	let scrolling = $state(false);
+	let currentLineIndex = $state(0);
 	let finished = $state(false);
 	let timer: ReturnType<typeof setTimeout> | null = null;
 
-	interface Token {
+	interface Line {
 		text: string;
 		sender: string;
 		isSenderLabel: boolean;
-		isParagraphEnd: boolean;
-		isMessageEnd: boolean;
 	}
+
+	let lines: Line[] = $state([]);
+	let lastMessageId = '';
+	let roomId = '';
+	let measureContainer: HTMLDivElement | null = null;
 
 	function stripMarkdown(text: string): string {
 		let s = text;
-		s = s.replace(/```[\s\S]*?```/g, '');
+		s = s.replace(/```\w*\n?/g, '');
 		s = s.replace(/`[^`]+`/g, (m) => m.slice(1, -1));
 		s = s.replace(/\|[^\n]+\|/g, '');
 		s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
@@ -38,57 +39,84 @@
 		s = s.replace(/^\d+\.\s+/gm, '');
 		s = s.replace(/^>\s+/gm, '');
 		s = s.replace(/^---+$/gm, '');
+		s = s.replace(/[—–]/g, '--');
 		s = s.replace(/\n{2,}/g, '\n');
 		return s.trim();
 	}
 
-	function tokenize(messages: { sender: string; content: string }[]): Token[] {
-		const tokens: Token[] = [];
+	function measureLines(text: string): string[] {
+		if (!measureContainer) return [text];
+		measureContainer.textContent = '';
+		const words = text.split(/\s+/).filter(Boolean);
+		if (words.length === 0) return [];
+
+		const result: string[] = [];
+		let currentLine = '';
+
+		for (const word of words) {
+			const testLine = currentLine ? currentLine + ' ' + word : word;
+			measureContainer.textContent = testLine;
+			const width = measureContainer.scrollWidth;
+			const maxWidth = measureContainer.clientWidth;
+
+			if (width > maxWidth && currentLine) {
+				result.push(currentLine);
+				currentLine = word;
+			} else {
+				currentLine = testLine;
+			}
+		}
+		if (currentLine) result.push(currentLine);
+		measureContainer.textContent = '';
+		return result;
+	}
+
+	function buildLines(messages: { sender: string; content: string }[]): Line[] {
+		const result: Line[] = [];
 
 		for (const msg of messages) {
-			const paragraphs = msg.content.split(/\n{2,}/).map(p => stripMarkdown(p)).filter(Boolean);
-			if (paragraphs.length === 0) continue;
+			const stripped = stripMarkdown(msg.content);
+			if (!stripped) continue;
 
-			tokens.push({ text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1), sender: msg.sender, isSenderLabel: true, isParagraphEnd: false, isMessageEnd: false });
+			result.push({
+				text: msg.sender.charAt(0).toUpperCase() + msg.sender.slice(1),
+				sender: msg.sender,
+				isSenderLabel: true,
+			});
 
-			for (let pi = 0; pi < paragraphs.length; pi++) {
-				const words = paragraphs[pi].split(/\s+/).filter(Boolean);
-				const isLastParagraph = pi === paragraphs.length - 1;
-
-				for (let wi = 0; wi < words.length; wi++) {
-					const isLastWord = wi === words.length - 1;
-					tokens.push({
-						text: words[wi],
+			const paragraphs = stripped.split(/\n/).filter(Boolean);
+			for (const para of paragraphs) {
+				const visualLines = measureLines(para);
+				for (const vl of visualLines) {
+					result.push({
+						text: vl,
 						sender: msg.sender,
 						isSenderLabel: false,
-						isParagraphEnd: isLastWord && !isLastParagraph,
-						isMessageEnd: isLastWord && isLastParagraph,
 					});
 				}
 			}
 		}
 
-		return tokens;
+		return result;
 	}
 
-	function getAnchorIndex(word: string): number {
-		const len = word.length;
-		if (len <= 1) return 0;
-		if (len <= 3) return 1;
-		if (len <= 5) return 2;
-		if (len <= 9) return 3;
-		if (len <= 13) return 4;
-		return 5;
+	function buildPasteLines(text: string): Line[] {
+		const stripped = stripMarkdown(text);
+		if (!stripped) return [];
+		const result: Line[] = [];
+		const paragraphs = stripped.split(/\n/).filter(Boolean);
+		for (const para of paragraphs) {
+			const visualLines = measureLines(para);
+			for (const vl of visualLines) {
+				result.push({ text: vl, sender: '', isSenderLabel: false });
+			}
+		}
+		return result;
 	}
 
-	function getDelay(token: Token): number {
-		if (token.isSenderLabel) return 2000;
-		return 60000 / wpm;
+	function getLineDelay(): number {
+		return 150000 / speed;
 	}
-
-	let tokens: Token[] = [];
-	let lastMessageId = '';
-	let roomId = '';
 
 	async function checkForNewMessages(): Promise<boolean> {
 		if (!roomId || !lastMessageId) return false;
@@ -97,8 +125,8 @@
 			if (!res.ok) return false;
 			const data = await res.json();
 			if (data.messages && data.messages.length > 0) {
-				const newTokens = tokenize(data.messages);
-				tokens = [...tokens, ...newTokens];
+				const newLines = buildLines(data.messages);
+				lines = [...lines, ...newLines];
 				lastMessageId = data.messages[data.messages.length - 1].id;
 				return true;
 			}
@@ -106,114 +134,76 @@
 		return false;
 	}
 
-	async function playNext() {
-		if (paused) return;
-		if (wordIndex >= tokens.length) {
+	async function advance() {
+		if (!scrolling) return;
+		if (currentLineIndex >= lines.length - 1) {
 			const found = await checkForNewMessages();
 			if (found) {
-				playNext();
+				advance();
 				return;
 			}
 			finished = true;
-			currentWord = 'end';
-			anchorIndex = 0;
-			showingSender = false;
-			try { window.close(); } catch {}
+			scrolling = false;
+			setTimeout(() => { try { window.close(); } catch {} }, 3000);
 			return;
 		}
 
-		const token = tokens[wordIndex];
-		currentWord = token.text;
-		showingSender = token.isSenderLabel;
-		anchorIndex = token.isSenderLabel ? 0 : getAnchorIndex(token.text);
-		wordIndex++;
-
-		timer = setTimeout(playNext, getDelay(token));
+		currentLineIndex++;
+		timer = setTimeout(advance, getLineDelay());
 	}
 
-	function jumpToIndex(idx: number) {
+	function goToLine(idx: number) {
 		if (timer) clearTimeout(timer);
-		wordIndex = idx;
+		currentLineIndex = Math.max(0, Math.min(idx, lines.length - 1));
 		finished = false;
-		const token = tokens[wordIndex];
-		if (token) {
-			currentWord = token.text;
-			showingSender = token.isSenderLabel;
-			anchorIndex = token.isSenderLabel ? 0 : getAnchorIndex(token.text);
-			wordIndex++;
-		}
-		if (!paused) {
-			timer = setTimeout(playNext, getDelay(token));
+		if (scrolling) {
+			timer = setTimeout(advance, getLineDelay());
 		}
 	}
 
 	function jumpToPrevSpeaker() {
-		let idx = Math.max(0, wordIndex - 2);
-		if (tokens[idx]?.isSenderLabel) idx--;
-		while (idx > 0 && !tokens[idx].isSenderLabel) {
-			idx--;
-		}
-		if (tokens[idx]?.isSenderLabel) {
-			jumpToIndex(idx);
-		} else {
-			jumpToIndex(0);
-		}
+		let idx = currentLineIndex - 1;
+		while (idx > 0 && !lines[idx].isSenderLabel) idx--;
+		goToLine(Math.max(0, idx));
 	}
 
 	function jumpToNextSpeaker() {
-		let idx = wordIndex;
-		while (idx < tokens.length && !tokens[idx].isSenderLabel) {
-			idx++;
-		}
-		if (idx < tokens.length) {
-			jumpToIndex(idx);
-		}
+		let idx = currentLineIndex + 1;
+		while (idx < lines.length && !lines[idx].isSenderLabel) idx++;
+		if (idx < lines.length) goToLine(idx);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.code === 'Space') {
 			e.preventDefault();
-			paused = !paused;
-			if (!paused && !finished) playNext();
-		} else if (e.code === 'ArrowLeft' && e.ctrlKey) {
+			scrolling = !scrolling;
+			if (scrolling && !finished) {
+				timer = setTimeout(advance, getLineDelay());
+			} else if (!scrolling && timer) {
+				clearTimeout(timer);
+			}
+		} else if (e.code === 'ArrowUp' && e.ctrlKey) {
 			e.preventDefault();
 			jumpToPrevSpeaker();
-		} else if (e.code === 'ArrowRight' && e.ctrlKey) {
+		} else if (e.code === 'ArrowDown' && e.ctrlKey) {
 			e.preventDefault();
 			jumpToNextSpeaker();
+		} else if (e.code === 'ArrowUp') {
+			e.preventDefault();
+			if (currentLineIndex > 0) goToLine(currentLineIndex - 1);
+		} else if (e.code === 'ArrowDown') {
+			e.preventDefault();
+			if (currentLineIndex < lines.length - 1) goToLine(currentLineIndex + 1);
 		} else if (e.code === 'ArrowLeft') {
 			e.preventDefault();
-			wpm = Math.max(MIN_WPM, wpm - 25);
+			speed = Math.max(MIN_SPEED, speed - 5);
 		} else if (e.code === 'ArrowRight') {
 			e.preventDefault();
-			wpm = Math.min(MAX_WPM, wpm + 25);
+			speed = Math.min(MAX_SPEED, speed + 5);
 		} else if (e.code === 'Escape') {
 			e.preventDefault();
 			try { window.close(); } catch {}
 		}
-	}
-
-	function tokenizePasteText(text: string): Token[] {
-		const paragraphs = text.split(/\n{2,}/).map(p => stripMarkdown(p)).filter(Boolean);
-		const tokens: Token[] = [];
-
-		for (let pi = 0; pi < paragraphs.length; pi++) {
-			const words = paragraphs[pi].split(/\s+/).filter(Boolean);
-			const isLastParagraph = pi === paragraphs.length - 1;
-
-			for (let wi = 0; wi < words.length; wi++) {
-				const isLastWord = wi === words.length - 1;
-				tokens.push({
-					text: words[wi],
-					sender: '',
-					isSenderLabel: false,
-					isParagraphEnd: isLastWord && !isLastParagraph,
-					isMessageEnd: isLastWord && isLastParagraph,
-				});
-			}
-		}
-
-		return tokens;
 	}
 
 	onMount(() => {
@@ -221,39 +211,37 @@
 			const pasteText = localStorage.getItem('rsvp-paste-text');
 			localStorage.removeItem('rsvp-paste-text');
 			if (!pasteText?.trim()) {
-				currentWord = 'No text to read';
 				finished = true;
 				return;
 			}
-			tokens = tokenizePasteText(pasteText);
-			if (tokens.length === 0) {
-				currentWord = 'No readable content';
+			lines = buildPasteLines(pasteText);
+			if (lines.length === 0) {
 				finished = true;
 				return;
 			}
 			document.addEventListener('keydown', handleKeydown);
-			playNext();
+			scrolling = true;
+			timer = setTimeout(advance, getLineDelay());
 			return;
 		}
 
 		if (data.error || data.messages.length === 0) {
-			currentWord = data.error || 'No messages';
 			finished = true;
 			return;
 		}
 
 		roomId = data.roomId || '';
 		lastMessageId = data.messages[data.messages.length - 1]?.id || '';
-		tokens = tokenize(data.messages);
+		lines = buildLines(data.messages);
 
-		if (tokens.length === 0) {
-			currentWord = 'No readable content';
+		if (lines.length === 0) {
 			finished = true;
 			return;
 		}
 
 		document.addEventListener('keydown', handleKeydown);
-		playNext();
+		scrolling = true;
+		timer = setTimeout(advance, getLineDelay());
 	});
 
 	onDestroy(() => {
@@ -263,158 +251,147 @@
 		}
 	});
 
-	let wordProgress = $derived(tokens.length > 0 ? Math.min(wordIndex / tokens.length, 1) : 0);
-	let wordCount = $derived(tokens.filter(t => !t.isSenderLabel).length);
-	let currentWordIndex = $derived(tokens.slice(0, wordIndex).filter(t => !t.isSenderLabel).length);
+	let progress = $derived(lines.length > 0 ? (currentLineIndex + 1) / lines.length : 0);
 
-	let beforeAnchor = $derived(showingSender ? '' : currentWord.slice(0, anchorIndex));
-	let anchorChar = $derived(showingSender ? '' : currentWord[anchorIndex] || '');
-	let afterAnchor = $derived(showingSender ? '' : currentWord.slice(anchorIndex + 1));
-	let wordFontSize = $derived(currentWord.length > 10 ? Math.max(40, 120 - (currentWord.length - 10) * 6) : 120);
+	function lineFontSize(idx: number): number {
+		return 16;
+	}
+
+	function lineColor(idx: number): string {
+		const dist = Math.abs(idx - currentLineIndex);
+		if (dist === 0) return '#7a5e4a';
+		return 'transparent';
+	}
+
+	function lineOpacity(idx: number): number {
+		const dist = Math.abs(idx - currentLineIndex);
+		if (dist === 0) return 1;
+		return 0;
+	}
+
+	function lineTopOffset(idx: number): number {
+		const lineHeight = 1.4;
+		const gap = 16;
+		if (idx === currentLineIndex) return 0;
+
+		const dir = idx > currentLineIndex ? 1 : -1;
+		let offset = 0;
+		let i = currentLineIndex;
+		while (i !== idx) {
+			const thisH = lineFontSize(i) * lineHeight;
+			const nextI = i + dir;
+			const nextH = lineFontSize(nextI) * lineHeight;
+			offset += dir * ((thisH / 2) + gap + (nextH / 2));
+			i = nextI;
+		}
+		return offset;
+	}
+
+	let visibleRange = $derived({
+		start: Math.max(0, currentLineIndex - CONTEXT_LINES),
+		end: Math.min(lines.length - 1, currentLineIndex + CONTEXT_LINES),
+	});
 </script>
 
 <svelte:head>
 	<title>Speed Reader</title>
 </svelte:head>
 
-<div class="rsvp-container">
-	<!-- Anchor guides -->
-	<div class="guide-top"></div>
-	<div class="guide-bottom"></div>
+<!-- Hidden container for measuring line widths at largest display size -->
+<div
+	bind:this={measureContainer}
+	class="measure-container"
+></div>
 
-	{#if showingSender}
-		<div class="sender-display">
-			<span class="sender-label">{currentWord}</span>
-		</div>
-	{:else}
-		<div class="word-display" style="font-size: {wordFontSize}px">
-			<span class="word-before">{beforeAnchor}</span><span class="word-anchor">{anchorChar}</span><span class="word-after">{afterAnchor}</span>
-		</div>
-	{/if}
-
-	<div class="wpm-display">
-		{wpm} wpm
+<div class="teleprompter-container">
+	<div class="current-line" style="top: 40vh;">
+		{#if finished}
+			<span class="end-display">end</span>
+		{:else if lines[currentLineIndex]}
+			{lines[currentLineIndex].text}
+		{/if}
 	</div>
 
+	<div class="speed-display">
+		{scrolling ? `speed: ${speed}` : 'PAUSED'}
+	</div>
 
 	<div class="progress-bar">
-		<div class="progress-fill" style="width: {wordProgress * 100}%"></div>
+		<div class="progress-fill" style="width: {progress * 100}%"></div>
 	</div>
 
 	<div class="help">
-		<span>Space: pause</span>
-		<span>Arrows: speed</span>
+		<span>Space: scroll</span>
+		<span>↑↓: line</span>
+		<span>Ctrl+↑↓: speaker</span>
+		<span>←→: speed</span>
 		<span>Esc: close</span>
 	</div>
 </div>
 
 <style>
-	@font-face {
-		font-family: 'Playfair Display';
-		src: url('/fonts/PlayfairDisplay.ttf') format('truetype');
-		font-weight: 100 900;
-		font-style: normal;
-		font-display: block;
-	}
-
 	:global(body) {
 		margin: 0;
 		padding: 0;
-		background: #0b0d10;
+		background: #0e1114;
 		overflow: hidden;
 	}
 
-	.rsvp-container {
+	.measure-container {
+		position: absolute;
+		top: -9999px;
+		left: 0;
+		width: 450px;
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
+		font-size: 16px;
+		white-space: nowrap;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.teleprompter-container {
 		width: 100vw;
 		height: 100vh;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		background: #0b0d10;
+		background: #0e1114;
 		position: relative;
 		user-select: none;
 	}
 
-	.guide-top {
-		position: fixed;
-		top: calc(42% - 130px);
-		left: 50%;
-		transform: translateX(-50%);
-		width: 3px;
-		height: 30px;
-		background: #7a5e4a;
-		border-radius: 2px;
-		pointer-events: none;
-	}
-
-	.guide-bottom {
-		position: fixed;
-		top: calc(42% + 110px);
-		left: 50%;
-		transform: translateX(-50%);
-		width: 3px;
-		height: 30px;
-		background: #7a5e4a;
-		border-radius: 2px;
-		pointer-events: none;
-	}
-
-	.word-display {
-		position: fixed;
-		top: 42%;
-		left: 0;
-		right: 0;
-		transform: translateY(-50%);
-		display: flex;
-		align-items: baseline;
-		white-space: nowrap;
-		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
-		line-height: 1;
-	}
-
-	.word-before {
-		color: #e8e6e3;
-		flex: 1;
-		text-align: right;
-	}
-
-	.word-anchor {
-		color: #c0392b;
-		flex-shrink: 0;
-	}
-
-	.word-after {
-		color: #e8e6e3;
-		flex: 1;
-		text-align: left;
-	}
-
-	.sender-display {
-		position: fixed;
-		top: 42%;
+	.current-line {
+		position: absolute;
 		left: 50%;
 		transform: translate(-50%, -50%);
-	}
-
-	.sender-label {
-		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
-		font-size: 40px;
-		color: #7a5e4a;
+		width: 450px;
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
+		font-size: 16px;
+		line-height: 1.8;
+		color: #CDCCC2;
+		text-align: center;
 		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
-	.wpm-display {
+	.end-display {
+		color: #333;
+		font-style: italic;
+	}
+
+	.speed-display {
 		position: fixed;
 		bottom: 40px;
 		right: 40px;
-		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
 		font-style: italic;
 		font-size: 28px;
 		color: #333;
 	}
 
-.progress-bar {
+	.progress-bar {
 		position: fixed;
 		bottom: 0;
 		left: 0;
@@ -434,7 +411,7 @@
 		bottom: 12px;
 		display: flex;
 		gap: 24px;
-		font-family: Baskerville, 'Baskerville Old Face', Georgia, serif;
+		font-family: 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono', ui-monospace, monospace;
 		font-size: 12px;
 		color: #222;
 	}
