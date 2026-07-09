@@ -4,7 +4,8 @@
 	let { data } = $props();
 
 	const MIN_SPEED = 1;
-	const MAX_SPEED = 1000;
+	const MAX_SPEED = 100;
+	const SPEED_STEP = 5;
 	const CONTEXT_LINES = 3;
 
 	let speed = $state(50);
@@ -126,7 +127,7 @@
 	}
 
 	function getLineDelay(): number {
-		return 150000 / speed;
+		return 3000 * Math.pow(0.96, speed - 50);
 	}
 
 	async function checkForNewMessages(): Promise<boolean> {
@@ -256,10 +257,10 @@
 			if (currentLineIndex < lines.length - 1) goToLine(currentLineIndex + 1);
 		} else if (e.code === 'ArrowLeft') {
 			e.preventDefault();
-			speed = Math.max(MIN_SPEED, speed - 50);
+			speed = Math.max(MIN_SPEED, speed - SPEED_STEP);
 		} else if (e.code === 'ArrowRight') {
 			e.preventDefault();
-			speed = Math.min(MAX_SPEED, speed + 50);
+			speed = Math.min(MAX_SPEED, speed + SPEED_STEP);
 		} else if (e.code === 'Escape') {
 			e.preventDefault();
 			try { window.close(); } catch {}

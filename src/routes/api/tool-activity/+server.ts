@@ -2,8 +2,35 @@ import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
 import { saveMessage, getActiveRoomsForTeammate } from "$lib/server/aether-db";
 import { sendToKitty } from "$lib/server/kitten";
-import { getHuddleMembers } from "$lib/server/aether-db";
 import { v4 } from "uuid";
+import fs from "fs";
+
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
+
+function getGroupMembers(sender: string): string[] {
+	const name = sender.toLowerCase();
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		let inSection = false;
+		for (const line of raw.split("\n")) {
+			if (line.startsWith("## Groups")) {
+				inSection = true;
+				continue;
+			}
+			if (inSection && line.startsWith("## ")) break;
+			if (!inSection || !line.trim()) continue;
+			const cleaned = line.replace(/\s*\(host:.*?\)\s*$/, "").trim();
+			if (!cleaned) continue;
+			const members = cleaned.split(",").map((m) => m.trim().toLowerCase());
+			if (members.includes(name)) {
+				return members.filter((m) => m !== name);
+			}
+		}
+		return [];
+	} catch {
+		return [];
+	}
+}
 
 export const POST: RequestHandler = async ({ request }) => {
 	const data = await request.json();
@@ -72,19 +99,18 @@ export const POST: RequestHandler = async ({ request }) => {
 			response: isResponse,
 			summary: data.summary,
 		});
+	}
 
-		// Fan-out tool activity to huddle members' Kitty tabs (live mirror)
-		if (targetRoom.startsWith("huddle-") && isToolCall && !isResponse) {
-			const members = getHuddleMembers(targetRoom);
-			for (const m of members) {
-				if (m !== sender) {
-					const input = typeof data.toolInput === "string" ? data.toolInput : JSON.stringify(data.toolInput || "");
-					const label = data.summary || `[live-mirror] ${data.toolName}: ${input.substring(0, 200)}`;
-					sendToKitty(m, { sender, room: targetRoom, body: label, timestamp: createdAt }).catch(() => {});
-				}
+	// Fan-out tool activity to group members' Kitty tabs (live mirror)
+	if (isToolCall && !isResponse) {
+		const groupMembers = getGroupMembers(sender);
+		if (groupMembers.length > 0) {
+			const input = typeof data.toolInput === "string" ? data.toolInput : JSON.stringify(data.toolInput || "");
+			const label = data.summary || `[live-mirror] ${data.toolName}: ${input.substring(0, 200)}`;
+			for (const m of groupMembers) {
+				sendToKitty(m, { sender, room: `direct-${sender}`, body: label, timestamp: createdAt }).catch(() => {});
 			}
 		}
-
 	}
 
 	const resData = isToolCall
