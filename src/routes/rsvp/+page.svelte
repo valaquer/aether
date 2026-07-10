@@ -41,7 +41,11 @@
 
 {#if ready}
 	{#if data.sessionId}
-		<SpeedReader sessionId={data.sessionId} />
+		<SpeedReader
+			sessionId={data.sessionId}
+			roomId="direct-jeh"
+			onPostAnnotations={handlePostAnnotations}
+		/>
 	{:else if data.pasteMode}
 		<SpeedReader pasteText={pasteText} />
 	{:else}

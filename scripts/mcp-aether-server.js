@@ -45,6 +45,41 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 				required: ["session_id", "chunk_text", "chunk_index", "is_last"],
 			},
 		},
+		{
+			name: "open_speed_reader",
+			description: "Open the speed reader in Boss's Safari browser for a given session",
+			inputSchema: {
+				type: "object",
+				properties: {
+					session_id: { type: "string", description: "The speed reader session ID to display" },
+				},
+				required: ["session_id"],
+			},
+		},
+		{
+			name: "label_speed_reader_session",
+			description: "Save metadata for a speed reader session (label and source)",
+			inputSchema: {
+				type: "object",
+				properties: {
+					session_id: { type: "string", description: "The speed reader session ID" },
+					label: { type: "string", description: "Description of the content (e.g. 'AI professor article on alignment')" },
+					source: { type: "string", description: "Where the text came from (e.g. 'wiki', 'pasted article', URL)" },
+				},
+				required: ["session_id", "label"],
+			},
+		},
+		{
+			name: "search_speed_reader_sessions",
+			description: "Search past speed reader sessions by label keyword",
+			inputSchema: {
+				type: "object",
+				properties: {
+					query: { type: "string", description: "Search term to match against session labels" },
+				},
+				required: ["query"],
+			},
+		},
 	],
 }));
 
@@ -109,7 +144,97 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				return { content: [{ type: "text", text: `Error: ${text}` }] };
 			}
 
+			const result = await res.json();
+			if (result.stopped) {
+				return { content: [{ type: "text", text: `STOPPED: Boss closed the speed reader. Stop sending chunks.` }] };
+			}
+
 			return { content: [{ type: "text", text: `Chunk ${chunk_index} sent.` }] };
+		} catch (err) {
+			return {
+				content: [
+					{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+				],
+			};
+		}
+	} else if (toolName === "label_speed_reader_session") {
+		const session_id = String(args.session_id ?? "");
+		const label = String(args.label ?? "");
+		const source = args.source ? String(args.source) : undefined;
+
+		if (!session_id || !label) {
+			return { content: [{ type: "text", text: "Error: session_id and label are required" }] };
+		}
+
+		try {
+			const res = await fetch(`${AETHER_URL}/api/speed-reader-sessions`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ session_id, label, source }),
+			});
+
+			if (!res.ok) {
+				const text = await res.text();
+				return { content: [{ type: "text", text: `Error: ${text}` }] };
+			}
+
+			return { content: [{ type: "text", text: `Session labeled: "${label}"` }] };
+		} catch (err) {
+			return {
+				content: [
+					{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+				],
+			};
+		}
+	} else if (toolName === "search_speed_reader_sessions") {
+		const query = String(args.query ?? "");
+
+		if (!query) {
+			return { content: [{ type: "text", text: "Error: query is required" }] };
+		}
+
+		try {
+			const res = await fetch(`${AETHER_URL}/api/speed-reader-sessions?q=${encodeURIComponent(query)}`);
+
+			if (!res.ok) {
+				const text = await res.text();
+				return { content: [{ type: "text", text: `Error: ${text}` }] };
+			}
+
+			const data = await res.json();
+			if (!data.sessions || data.sessions.length === 0) {
+				return { content: [{ type: "text", text: "No matching sessions found." }] };
+			}
+
+			const list = data.sessions.map(s => `${s.session_id} | ${s.label} | ${s.created_at}`).join("\n");
+			return { content: [{ type: "text", text: list }] };
+		} catch (err) {
+			return {
+				content: [
+					{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+				],
+			};
+		}
+	} else if (toolName === "open_speed_reader") {
+		const session_id = String(args.session_id ?? "");
+
+		if (!session_id) {
+			return { content: [{ type: "text", text: "Error: session_id is required" }] };
+		}
+
+		try {
+			const res = await fetch(`${AETHER_URL}/api/speed-reader-open`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ session_id }),
+			});
+
+			if (!res.ok) {
+				const text = await res.text();
+				return { content: [{ type: "text", text: `Error: ${text}` }] };
+			}
+
+			return { content: [{ type: "text", text: `Speed reader opened for session ${session_id}.` }] };
 		} catch (err) {
 			return {
 				content: [

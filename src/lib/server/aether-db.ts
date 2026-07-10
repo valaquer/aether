@@ -122,6 +122,15 @@ export function initDb(): void {
 			created_at TEXT NOT NULL
 		)
 	`);
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS speed_reader_sessions (
+			session_id TEXT PRIMARY KEY,
+			label TEXT,
+			source TEXT,
+			stopped INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)
+	`);
 }
 
 export function getHarnessState(key: string): string | null {
@@ -532,4 +541,36 @@ export function getSpeedReaderChunks(sessionId: string, afterIndex?: number): { 
 	return db.prepare(
 		"SELECT chunk_text, chunk_index, is_last FROM speed_reader_chunks WHERE session_id = ? ORDER BY chunk_index"
 	).all(sessionId) as { chunk_text: string; chunk_index: number; is_last: boolean }[];
+}
+
+export function saveSpeedReaderSession(sessionId: string, label: string, source?: string): void {
+	initDb();
+	db.prepare(
+		"INSERT OR REPLACE INTO speed_reader_sessions (session_id, label, source, created_at) VALUES (?, ?, ?, ?)"
+	).run(sessionId, label, source || null, new Date().toISOString());
+}
+
+export function searchSpeedReaderSessions(query: string): { session_id: string; label: string; source: string | null; created_at: string }[] {
+	initDb();
+	return db.prepare(
+		"SELECT session_id, label, source, created_at FROM speed_reader_sessions WHERE label LIKE ? ORDER BY created_at DESC LIMIT 20"
+	).all(`%${query}%`) as { session_id: string; label: string; source: string | null; created_at: string }[];
+}
+
+export function listSpeedReaderSessions(): { session_id: string; label: string; source: string | null; created_at: string }[] {
+	initDb();
+	return db.prepare(
+		"SELECT session_id, label, source, created_at FROM speed_reader_sessions ORDER BY created_at DESC LIMIT 50"
+	).all() as { session_id: string; label: string; source: string | null; created_at: string }[];
+}
+
+export function stopSpeedReaderSession(sessionId: string): void {
+	initDb();
+	db.prepare("UPDATE speed_reader_sessions SET stopped = 1 WHERE session_id = ?").run(sessionId);
+}
+
+export function isSpeedReaderSessionStopped(sessionId: string): boolean {
+	initDb();
+	const row = db.prepare("SELECT stopped FROM speed_reader_sessions WHERE session_id = ?").get(sessionId) as { stopped: number } | undefined;
+	return row?.stopped === 1;
 }
