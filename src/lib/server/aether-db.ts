@@ -516,7 +516,7 @@ export function backfillTodaysPins(): void {
 	const today = new Date().toISOString().slice(0, 10);
 	const rows = db
 		.prepare(
-			"SELECT DISTINCT m.conversationId FROM messages m INNER JOIN rooms r ON m.conversationId = r.id WHERE m.sender = 'boss' AND m.conversationId LIKE 'huddle-%' AND r.type = 'active' AND m.createdAt >= ? ORDER BY m.createdAt"
+			"SELECT DISTINCT m.conversationId FROM messages m INNER JOIN rooms r ON m.conversationId = r.id WHERE m.sender = 'boss' AND m.conversationId LIKE 'huddle-%' AND r.type != 'past' AND m.createdAt >= ? ORDER BY m.createdAt"
 		)
 		.all(today + "T00:00:00") as { conversationId: string }[];
 	for (const row of rows) {
