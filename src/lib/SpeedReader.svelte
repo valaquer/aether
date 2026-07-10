@@ -1,0 +1,1 @@
+/Users/deepak-macmini/honeybloom/library/components/SpeedReader.svelte
