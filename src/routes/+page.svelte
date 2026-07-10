@@ -18,8 +18,9 @@
 	import LucideLayoutGrid from '~icons/lucide/layout-grid';
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
-	import LucideGauge from '~icons/lucide/gauge';
-	import LucideSparkles from '~icons/lucide/sparkles';
+import LucideGauge from '~icons/lucide/gauge';
+import LucideSparkles from '~icons/lucide/sparkles';
+import LucidePin from '~icons/lucide/pin';
 
 	onMount(() => {
 		document.addEventListener('click', (e) => {
@@ -58,6 +59,7 @@
 	// Bookmark type imported from bookmarkStore.svelte.ts
 	type NavItem =
 		| { type: "header"; section: string }
+		| { type: "pinned"; item: SidebarItem; pinnedRoomId: string }
 		| { type: "teammate"; item: SidebarItem }
 		| { type: "huddle"; item: SidebarItem }
 		| { type: "bookmark"; bm: Bookmark }
@@ -97,6 +99,54 @@
 	let sidebarLoaded = $state(false);
 	let focusMode = $state(false);
 	let rewindIndex = $state<number | null>(null);
+	let pinnedRoomIds = $state<string[]>([]);
+
+	async function loadPinnedRooms() {
+		try {
+			const r = await fetch("/api/pinned-rooms");
+			if (r.ok) {
+				const d = await r.json();
+				pinnedRoomIds = d.rooms || [];
+			}
+		} catch {}
+	}
+
+	async function backfillPins() {
+		try {
+			const r = await fetch("/api/pinned-rooms", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "backfill" }),
+			});
+			if (r.ok) {
+				const d = await r.json();
+				pinnedRoomIds = d.rooms || [];
+			}
+		} catch {}
+	}
+
+	async function pinToSidebar(roomId: string) {
+		if (pinnedRoomIds.includes(roomId)) return;
+		pinnedRoomIds = [...pinnedRoomIds, roomId];
+		try {
+			await fetch("/api/pinned-rooms", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "pin", roomId }),
+			});
+		} catch {}
+	}
+
+	async function unpinFromSidebar(roomId: string) {
+		pinnedRoomIds = pinnedRoomIds.filter(id => id !== roomId);
+		try {
+			await fetch("/api/pinned-rooms", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "unpin", roomId }),
+			});
+		} catch {}
+	}
 
 	function saveRewindPosition(room: string, messageId: string) {
 		try {
@@ -167,6 +217,18 @@
 	// Nav model: unified navItems array in visual order with section headers as navigable items
 	let navItems = $derived.by(() => {
 		const items: NavItem[] = [];
+
+		// Pinned for the Day section
+		if (pinnedRoomIds.length > 0) {
+			items.push({ type: "header", section: "Pinned for the Day" });
+			for (const roomId of pinnedRoomIds) {
+				const item = sidebarItems.find(x => x.id === roomId);
+				if (item) {
+					items.push({ type: "pinned", item, pinnedRoomId: roomId });
+				}
+			}
+		}
+
 		items.push({ type: "header", section: "Teammates" });
 		for (const item of sidebarItems.filter(x => x.kind === "teammate")) {
 			items.push({ type: "teammate", item });
@@ -203,6 +265,7 @@
 	function navItemRoomId(nav: NavItem): string {
 		if (nav.type === "header") return "";
 		if (nav.type === "bookmark") return nav.bm.roomId;
+		if (nav.type === "pinned") return nav.pinnedRoomId;
 		return nav.item.id;
 	}
 
@@ -221,6 +284,7 @@
 			const item = sidebarItems.find(x => x.id === nav.bm.roomId);
 			return item?.kind ?? "past";
 		}
+		if (nav.type === "pinned") return nav.item.kind;
 		return nav.item.kind;
 	});
 
@@ -246,11 +310,13 @@
 			const isInitialLoad = !sidebarLoaded;
 			const wasOnHeader = !isInitialLoad && navItems[selectedIndex]?.type === "header";
 			const headerSection = wasOnHeader ? (navItems[selectedIndex] as { type: "header"; section: string }).section : "";
-			const fetches: Promise<Response>[] = [fetch("/api/rooms")];
+			const fetches: Promise<Response>[] = [fetch("/api/rooms"), fetch("/api/pinned-rooms")];
 			if (isInitialLoad) fetches.push(fetch("/api/preferences"));
 			const responses = await Promise.all(fetches);
 			const data = await responses[0].json();
-			const prefs = isInitialLoad ? await responses[1].json() : null;
+			const pinnedData = await responses[1].json();
+			pinnedRoomIds = pinnedData.rooms || [];
+			const prefs = isInitialLoad ? await responses[2].json() : null;
 			const teammates = (data.teammates ?? []).map((t: { id: string; name: string; model: string; online: boolean; group?: string; groupIdx?: number }) => ({ id: t.id, name: t.name, model: t.model || "", kind: "teammate" as const, online: t.online, group: t.group || "", groupIdx: t.groupIdx ?? 0 }));
 			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[] }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999 }));
 			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string; startedAt?: string }) => ({ id: p.id, name: p.name, kind: "past" as const, startedAt: p.startedAt }));
@@ -519,6 +585,7 @@
 		try { const sh = localStorage.getItem('aether-stopped-huddles'); if (sh) stoppedHuddles = new Set(JSON.parse(sh)); } catch {}
 		const savedIds = localStorage.getItem('aether-queued-ids');
 		if (savedIds) { try { const parsed = JSON.parse(savedIds); if (Array.isArray(parsed)) { queuedMessageIds = {}; } else { queuedMessageIds = parsed; } } catch {} }
+		backfillPins();
 		loadSidebar();
 		loadBookmarks();
 		resizeInput();
@@ -925,6 +992,25 @@
 							/>
 						{/if}
 					</div>
+{:else if nav.type === "pinned"}
+					{@const item = nav.item}
+					{@const fmt = formatPastRoom(item.id)}
+					{@const pinnedLocalIdx = navItems.slice(0, i).filter(n => n.type === "pinned").length}
+					{@const isPinnedHuddle = item.kind === "huddle"}
+					<div
+						class="sidebar-row"
+						data-nav-idx={i}
+						onclick={() => selectedIndex = i}
+						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (pinnedLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative;"
+					>
+						<div>{#if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						{#if isPinnedHuddle && item.participants?.length}
+							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
+						{/if}
+						<span class="sidebar-actions">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); unpinFromSidebar(nav.pinnedRoomId); }} title="Unpin"><LucideX width={14} height={14} /></button>
+						</span>
+					</div>
 				{:else if nav.type === "teammate"}
 					{@const item = nav.item}
 					{@const fmt = formatPastRoom(item.id)}
@@ -937,7 +1023,8 @@
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
 						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span>{#if isFirstInGroup && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
-						{#if item.online && !archivingTeammates.has(fmt.label)}<span class="sidebar-actions">
+{#if !archivingTeammates.has(fmt.label)}<span class="sidebar-actions">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); if (pinnedRoomIds.includes(item.id)) { unpinFromSidebar(item.id); } else { pinToSidebar(item.id); } }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -959,6 +1046,7 @@
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
 						<span class="sidebar-actions">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title="{pinnedRoomIds.includes(item.id) ? 'Unpin' : 'Pin'}"><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -999,7 +1087,8 @@
 					>
 						<div>{fmt.label} &nbsp;{#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						<span class="sidebar-actions">
-							<button class="sidebar-action-btn" onclick={(e) => e.stopPropagation()} title="Archive"><LucideArchive width={14} height={14} /></button>
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); if (pinnedRoomIds.includes(item.id)) { unpinFromSidebar(item.id); } else { pinToSidebar(item.id); } }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>

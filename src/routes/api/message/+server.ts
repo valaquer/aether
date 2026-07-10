@@ -9,6 +9,8 @@ import {
 	roomExists,
 	getHuddleMembers,
 	getTokenHolder,
+	pinRoom,
+	unpinRoom,
 } from "$lib/server/aether-db";
 import {
 	advanceTokenAndNotify,
@@ -173,6 +175,19 @@ export const POST: RequestHandler = async ({ request }) => {
 	};
 
 	saveMessage(msg);
+
+	// Auto-pin: huddles only — direct rooms pin manually via icon
+	if (resolvedRoom.startsWith("huddle-") && sender !== "system") {
+		pinRoom(resolvedRoom);
+	}
+
+	// Unpin triggers: Boss typing "end session" or "end huddle" phrases
+	if (sender === "boss") {
+		const lower = body.toLowerCase();
+		if (lower.includes("fire your end session skill") || lower.includes("end huddle")) {
+			unpinRoom(resolvedRoom);
+		}
+	}
 
 	emitEvent({
 		type: "message",

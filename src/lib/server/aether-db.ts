@@ -106,6 +106,12 @@ export function initDb(): void {
 			updated_at TEXT NOT NULL
 		)
 	`);
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS pinned_rooms (
+			roomId TEXT PRIMARY KEY,
+			pinnedAt TEXT NOT NULL
+		)
+	`);
 }
 
 export function getHarnessState(key: string): string | null {
@@ -462,5 +468,39 @@ export function getNotebook(): string {
 		return decrypt(row.content, key);
 	} catch {
 		return "";
+	}
+}
+
+// --- Pinned Rooms ---
+
+export function pinRoom(roomId: string): void {
+	initDb();
+	db.prepare("INSERT OR IGNORE INTO pinned_rooms (roomId, pinnedAt) VALUES (?, ?)").run(
+		roomId,
+		new Date().toISOString()
+	);
+}
+
+export function unpinRoom(roomId: string): void {
+	initDb();
+	db.prepare("DELETE FROM pinned_rooms WHERE roomId = ?").run(roomId);
+}
+
+export function getPinnedRooms(): string[] {
+	initDb();
+	const rows = db.prepare("SELECT roomId FROM pinned_rooms ORDER BY pinnedAt").all() as { roomId: string }[];
+	return rows.map((r) => r.roomId);
+}
+
+export function backfillTodaysPins(): void {
+	initDb();
+	const today = new Date().toISOString().slice(0, 10);
+	const rows = db
+		.prepare(
+			"SELECT DISTINCT conversationId FROM messages WHERE sender = 'boss' AND conversationId LIKE 'huddle-%' AND createdAt >= ? ORDER BY createdAt"
+		)
+		.all(today + "T00:00:00") as { conversationId: string }[];
+	for (const row of rows) {
+		pinRoom(row.conversationId);
 	}
 }
