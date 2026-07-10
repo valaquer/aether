@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 
 export interface AetherEvent {
-	type: "message" | "huddle_update";
+	type: "message" | "huddle_update" | "speed_reader_chunk";
 	id?: string;
 	conversationId?: string;
 	sender?: string;

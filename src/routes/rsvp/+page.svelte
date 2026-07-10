@@ -40,7 +40,9 @@
 </script>
 
 {#if ready}
-	{#if data.pasteMode}
+	{#if data.sessionId}
+		<SpeedReader sessionId={data.sessionId} />
+	{:else if data.pasteMode}
 		<SpeedReader pasteText={pasteText} />
 	{:else}
 		<SpeedReader

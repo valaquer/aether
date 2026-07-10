@@ -31,48 +31,94 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 				required: ["body"],
 			},
 		},
+		{
+			name: "post_speed_reader_chunk",
+			description: "Send a speed reader chunk for Boss's reading session",
+			inputSchema: {
+				type: "object",
+				properties: {
+					session_id: { type: "string", description: "The speed reader session ID" },
+					chunk_text: { type: "string", description: "The text chunk (one breath-group)" },
+					chunk_index: { type: "number", description: "Chunk sequence number starting at 0" },
+					is_last: { type: "boolean", description: "True if this is the final chunk" },
+				},
+				required: ["session_id", "chunk_text", "chunk_index", "is_last"],
+			},
+		},
 	],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-	if (request.params.name !== "post_to_aether") {
-		throw new Error(`Unknown tool: ${request.params.name}`);
-	}
-
+	const toolName = request.params.name;
 	const args = request.params.arguments ?? {};
-	const body = String(args.body ?? "");
-	const room = String(args.room ?? ROOM);
-	if (!body) {
-		return { content: [{ type: "text", text: "Error: body is required" }] };
-	}
 
-	try {
-		const res = await fetch(`${AETHER_URL}/api/message`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ sender: SENDER, body, room }),
-		});
-
-		if (!res.ok) {
-			const text = await res.text();
-			let msg = "Something went wrong.";
-			try {
-				const parsed = JSON.parse(text);
-				if (parsed.message) msg = parsed.message;
-				else if (parsed.error) msg = parsed.error;
-			} catch {
-				if (text) msg = text;
-			}
-			return { content: [{ type: "text", text: msg }] };
+	if (toolName === "post_to_aether") {
+		const body = String(args.body ?? "");
+		const room = String(args.room ?? ROOM);
+		if (!body) {
+			return { content: [{ type: "text", text: "Error: body is required" }] };
 		}
 
-		return { content: [{ type: "text", text: `Message sent to room ${room}.` }] };
-	} catch (err) {
-		return {
-			content: [
-				{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
-			],
-		};
+		try {
+			const res = await fetch(`${AETHER_URL}/api/message`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ sender: SENDER, body, room }),
+			});
+
+			if (!res.ok) {
+				const text = await res.text();
+				let msg = "Something went wrong.";
+				try {
+					const parsed = JSON.parse(text);
+					if (parsed.message) msg = parsed.message;
+					else if (parsed.error) msg = parsed.error;
+				} catch {
+					if (text) msg = text;
+				}
+				return { content: [{ type: "text", text: msg }] };
+			}
+
+			return { content: [{ type: "text", text: `Message sent to room ${room}.` }] };
+		} catch (err) {
+			return {
+				content: [
+					{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+				],
+			};
+		}
+	} else if (toolName === "post_speed_reader_chunk") {
+		const session_id = String(args.session_id ?? "");
+		const chunk_text = String(args.chunk_text ?? "");
+		const chunk_index = Number(args.chunk_index ?? 0);
+		const is_last = Boolean(args.is_last);
+
+		if (!session_id || !chunk_text) {
+			return { content: [{ type: "text", text: "Error: session_id and chunk_text are required" }] };
+		}
+
+		try {
+			const res = await fetch(`${AETHER_URL}/api/speed-reader-chunks`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ session_id, chunk_text, chunk_index, is_last }),
+			});
+
+			if (!res.ok) {
+				const text = await res.text();
+				return { content: [{ type: "text", text: `Error: ${text}` }] };
+			}
+
+			return { content: [{ type: "text", text: `Chunk ${chunk_index} sent.` }] };
+		} catch (err) {
+			return {
+				content: [
+					{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+				],
+			};
+		}
+	} else {
+		throw new Error(`Unknown tool: ${toolName}`);
 	}
 });
 

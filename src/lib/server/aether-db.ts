@@ -112,6 +112,16 @@ export function initDb(): void {
 			pinnedAt TEXT NOT NULL
 		)
 	`);
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS speed_reader_chunks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT NOT NULL,
+			chunk_text TEXT NOT NULL,
+			chunk_index INTEGER NOT NULL,
+			is_last INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)
+	`);
 }
 
 export function getHarnessState(key: string): string | null {
@@ -503,4 +513,23 @@ export function backfillTodaysPins(): void {
 	for (const row of rows) {
 		pinRoom(row.conversationId);
 	}
+}
+
+export function saveSpeedReaderChunk(sessionId: string, chunkText: string, chunkIndex: number, isLast: boolean): void {
+	initDb();
+	db.prepare(
+		"INSERT INTO speed_reader_chunks (session_id, chunk_text, chunk_index, is_last, created_at) VALUES (?, ?, ?, ?, ?)"
+	).run(sessionId, chunkText, chunkIndex, isLast ? 1 : 0, new Date().toISOString());
+}
+
+export function getSpeedReaderChunks(sessionId: string, afterIndex?: number): { chunk_text: string; chunk_index: number; is_last: boolean }[] {
+	initDb();
+	if (afterIndex !== undefined) {
+		return db.prepare(
+			"SELECT chunk_text, chunk_index, is_last FROM speed_reader_chunks WHERE session_id = ? AND chunk_index > ? ORDER BY chunk_index"
+		).all(sessionId, afterIndex) as { chunk_text: string; chunk_index: number; is_last: boolean }[];
+	}
+	return db.prepare(
+		"SELECT chunk_text, chunk_index, is_last FROM speed_reader_chunks WHERE session_id = ? ORDER BY chunk_index"
+	).all(sessionId) as { chunk_text: string; chunk_index: number; is_last: boolean }[];
 }

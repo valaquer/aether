@@ -4,8 +4,13 @@ import { getMessages } from "$lib/server/aether-db";
 export const load: PageServerLoad = async ({ url }) => {
 	const roomId = url.searchParams.get("roomId");
 	const startFrom = url.searchParams.get("startFrom");
+	const sessionId = url.searchParams.get("session");
 
 	const mode = url.searchParams.get("mode");
+
+	if (sessionId) {
+		return { messages: [], error: null, sessionId };
+	}
 
 	if (mode === "paste") {
 		return { messages: [], error: null, pasteMode: true };
