@@ -19,7 +19,6 @@
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
 import LucideGauge from '~icons/lucide/gauge';
-import LucideSparkles from '~icons/lucide/sparkles';
 import LucidePin from '~icons/lucide/pin';
 
 	onMount(() => {
@@ -71,13 +70,13 @@ import LucidePin from '~icons/lucide/pin';
 		const directMatch = name.match(/^direct-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
 		if (directMatch) {
 			const [, n, y, mo, d, h, mi] = directMatch;
-			return { label: n, date: `${parseInt(d)} ${months[parseInt(mo)-1]} ${y} ${h}:${mi}` };
+			return { label: n, date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
 		// huddle-{host}-{YYYYMMDD}-{HHMMSS}
 		const huddleMatch = name.match(/^huddle-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
 		if (huddleMatch) {
 			const [, host, y, mo, d, h, mi] = huddleMatch;
-			return { label: host + "'s huddle", date: `${parseInt(d)} ${months[parseInt(mo)-1]} ${y} ${h}:${mi}` };
+			return { label: host + "'s huddle", date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
 		const bareMatch = name.match(/^direct-([a-z]+)$/);
 		if (bareMatch) return { label: bareMatch[1], date: "" };
@@ -104,20 +103,6 @@ import LucidePin from '~icons/lucide/pin';
 	async function loadPinnedRooms() {
 		try {
 			const r = await fetch("/api/pinned-rooms");
-			if (r.ok) {
-				const d = await r.json();
-				pinnedRoomIds = d.rooms || [];
-			}
-		} catch {}
-	}
-
-	async function backfillPins() {
-		try {
-			const r = await fetch("/api/pinned-rooms", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ action: "backfill" }),
-			});
 			if (r.ok) {
 				const d = await r.json();
 				pinnedRoomIds = d.rooms || [];
@@ -585,7 +570,6 @@ import LucidePin from '~icons/lucide/pin';
 		try { const sh = localStorage.getItem('aether-stopped-huddles'); if (sh) stoppedHuddles = new Set(JSON.parse(sh)); } catch {}
 		const savedIds = localStorage.getItem('aether-queued-ids');
 		if (savedIds) { try { const parsed = JSON.parse(savedIds); if (Array.isArray(parsed)) { queuedMessageIds = {}; } else { queuedMessageIds = parsed; } } catch {} }
-		backfillPins();
 		loadSidebar();
 		loadBookmarks();
 		resizeInput();
@@ -768,7 +752,12 @@ import LucidePin from '~icons/lucide/pin';
 		return map;
 	});
 	let chatMessages = $derived(currentMessages.filter((m) => !m.toolCall && !m.response));
-	let activityCards = $derived(currentMessages.filter((m) => m.toolCall || m.response));
+	const UI_HIDDEN_TOOLS = ["post_to_aether", "request_token", "ToolSearch"];
+	function isHiddenToolCall(m: ChatMsg) {
+		if (!m.toolCall) return false;
+		try { const p = JSON.parse(m.content); return UI_HIDDEN_TOOLS.some(t => p.toolName?.includes(t)); } catch { return false; }
+	}
+	let activityCards = $derived(currentMessages.filter((m) => (m.toolCall || m.response) && !isHiddenToolCall(m)));
 	let isCurrentRoomPaused = $derived((selectedConvId?.startsWith("huddle-") && stoppedHuddles.has(selectedConvId)) || pausedRoom === selectedConvId);
 
 	$effect(() => {
@@ -861,6 +850,8 @@ import LucidePin from '~icons/lucide/pin';
 	let copyFlashMsgId = $state("");
 	let printFlashRoom = $state("");
 	let printFlashMsgId = $state("");
+	let gaugeFlashMsgId = $state("");
+	let gaugeFlashBar = $state(false);
 	function findBossAnchor(msg: { id: string }): string {
 		const idx = chatMessages.findIndex(m => m.id === msg.id);
 		if (idx === -1) return msg.id;
@@ -869,26 +860,6 @@ import LucidePin from '~icons/lucide/pin';
 		return i >= 0 ? chatMessages[i].id : chatMessages[0].id;
 	}
 
-	let analyzeFlashMsgId = $state("");
-	let analyzing = $state(false);
-	async function analyzeChunk(msg: { id: string }) {
-		if (analyzing) return;
-		analyzing = true;
-		analyzeFlashMsgId = msg.id;
-		try {
-			const r = await fetch('/api/analyze-chunk', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ roomId: selectedConvId, messageId: msg.id })
-			});
-			const data = await r.json();
-			if (!r.ok) console.error('[analyze-chunk]', data.error);
-		} catch (e) {
-			console.error('[analyze-chunk]', e);
-		}
-		setTimeout(() => { analyzeFlashMsgId = ""; }, 1500);
-		analyzing = false;
-	}
 	let archiveFlashName = $state("");
 	let archiveFlashRoom = $state("");
 	let archivingTeammates = $state(new Set<string>());
@@ -968,7 +939,7 @@ import LucidePin from '~icons/lucide/pin';
 <svelte:window onkeydown={handleKeydown} onmousemove={onRulerMouseMove} onmouseup={onRulerMouseUp} />
 
 
-<div style="display: grid; grid-template-columns: 280px calc(50vw - 615px) 570px 1fr 570px 1fr; height: 100vh;">
+<div style="display: grid; grid-template-columns: 320px calc(50vw - 655px) 570px 1fr 570px 1fr; height: 100vh;">
 	<!-- Sidebar -->
 	<div style="background: var(--color-bg-panel); border-right: 1px dashed var(--color-bg-step4); display: flex; flex-direction: column; height: 100vh; visibility: {focusMode ? 'hidden' : 'visible'};">
 		<div style="flex: 1; overflow-y: auto; font-family: var(--font-sans); font-size: 10px;">
@@ -1125,11 +1096,8 @@ import LucidePin from '~icons/lucide/pin';
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => window.open(`/rsvp?roomId=${encodeURIComponent(selectedConvId)}&startFrom=${encodeURIComponent(findBossAnchor(msg))}`, 'speedreader')} title="Speed read from here" style="color: #555;"><LucideGauge width={14} height={14} /></button>
-								{#if selectedConvId?.startsWith('huddle-')}
-									<button class="control-btn" disabled={analyzing} onclick={() => analyzeChunk(msg)} title="Send chunk to Jeh for analysis" style="color: {analyzeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideSparkles width={14} height={14} /></button>
-								{/if}
-							</span>
+								<button class="control-btn" onclick={() => { gaugeFlashMsgId = msg.id; setTimeout(() => { gaugeFlashMsgId = ''; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: selectedConvId, startFrom: msg.id }) }).catch(() => {}); }} title="Speed read from here" style="color: {gaugeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideGauge width={14} height={14} /></button>
+								</span>
 						</div>
 					{/each}
 				</div>
@@ -1192,7 +1160,7 @@ import LucidePin from '~icons/lucide/pin';
 						</div>
 					{/if}
 				</span>
-				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { localStorage.setItem('rsvp-paste-text', text); window.open('/rsvp?mode=paste', 'speedreader'); } }} title="Speed read input bar text" style="color: #555;">
+				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { gaugeFlashBar = true; setTimeout(() => { gaugeFlashBar = false; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => {}); } }} title="Speed read input bar text" style="color: {gaugeFlashBar ? '#7a5e4a' : '#555'};">
 						<LucideGauge width={14} height={14} />
 				</button>
 				</div>
