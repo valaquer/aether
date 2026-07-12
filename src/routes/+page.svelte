@@ -1160,7 +1160,7 @@ import LucidePin from '~icons/lucide/pin';
 						</div>
 					{/if}
 				</span>
-				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { gaugeFlashBar = true; setTimeout(() => { gaugeFlashBar = false; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => {}); } }} title="Speed read input bar text" style="color: {gaugeFlashBar ? '#7a5e4a' : '#555'};">
+				<button class="control-btn" onclick={() => { const text = newMessage?.trim(); if (text) { gaugeFlashBar = true; setTimeout(() => { gaugeFlashBar = false; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => {}); newMessage = ''; } }} title="Speed read input bar text" style="color: {gaugeFlashBar ? '#7a5e4a' : '#555'};">
 						<LucideGauge width={14} height={14} />
 				</button>
 				</div>
