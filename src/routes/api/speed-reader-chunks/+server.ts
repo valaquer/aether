@@ -4,7 +4,7 @@ import { saveSpeedReaderChunk, getSpeedReaderChunks } from "$lib/server/aether-d
 import { emitEvent } from "$lib/server/events";
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { session_id, chunk_text, chunk_index, is_last } = await request.json();
+	const { session_id, chunk_text, chunk_index, is_last, total_sections, section_index, session_complete } = await request.json();
 
 	if (!session_id || chunk_text === undefined || chunk_index === undefined) {
 		return json({ error: "Missing required fields" }, { status: 400 });
@@ -18,6 +18,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		content: chunk_text,
 		sender: String(chunk_index),
 		toolCall: !!is_last,
+		...(total_sections !== undefined ? { totalSections: total_sections } : {}),
+		...(section_index !== undefined ? { sectionIndex: section_index } : {}),
+		...(session_complete ? { sessionComplete: true } : {}),
 	});
 
 	return json({ ok: true });

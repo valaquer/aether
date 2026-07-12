@@ -1,5 +1,6 @@
 import type { PageServerLoad } from "./$types";
 import { getMessages } from "$lib/server/aether-db";
+import { sendToKitty } from "$lib/server/kitten";
 
 export const load: PageServerLoad = async ({ url }) => {
 	const roomId = url.searchParams.get("roomId");
@@ -9,7 +10,8 @@ export const load: PageServerLoad = async ({ url }) => {
 	const mode = url.searchParams.get("mode");
 
 	if (sessionId) {
-		return { messages: [], error: null, sessionId };
+		const sectioned = url.searchParams.get("sectioned") === "true";
+		return { messages: [], error: null, sessionId, sectioned };
 	}
 
 	if (mode === "paste") {
@@ -34,11 +36,20 @@ export const load: PageServerLoad = async ({ url }) => {
 		if (found !== -1) startIndex = found;
 	}
 
-	const messages = allMessages.slice(startIndex).map((m) => ({
-		id: m.id,
-		sender: m.sender,
-		content: m.content,
-	}));
+	const messages = allMessages.slice(startIndex);
 
-	return { messages, error: null, roomId };
+	// Route through Jeh — concatenate messages into text, send via sendToKitty
+	const sid = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+	const text = messages.map((m) => `${m.sender.charAt(0).toUpperCase() + m.sender.slice(1)}:\n${m.content}`).join('\n\n---\n\n');
+
+	try {
+		await sendToKitty("jeh", {
+			sender: "boss",
+			room: "direct-jeh",
+			body: `[speed-reader-session: ${sid}]\n${text}`,
+			timestamp: new Date().toISOString(),
+		});
+	} catch {}
+
+	return { messages: [], error: null, sessionId: sid, roomId };
 };

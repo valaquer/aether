@@ -122,14 +122,11 @@ html, body {
 	font-family: var(--font-mono);
 	font-size: 0.95em;
 	color: #56b6c2;
+	-webkit-text-fill-color: #56b6c2;
 	background: #1a1e2e;
+	background-clip: padding-box;
 	padding: 0.1em 0.35em;
 	border-radius: 3px;
-}
-.md-content strong code,
-.md-content em code {
-	-webkit-text-fill-color: #56b6c2;
-	background-clip: padding-box;
 }
 
 .md-content pre {
@@ -151,6 +148,7 @@ html, body {
 	background: none;
 	padding: 0;
 	color: var(--color-text);
+	-webkit-text-fill-color: var(--color-text);
 }
 
 .md-content pre .copy-btn {

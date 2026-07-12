@@ -5,10 +5,11 @@ export const GET: RequestHandler = async ({ url }) => {
 	const roomId = url.searchParams.get("roomId");
 	const host = url.searchParams.get("host");
 	const date = url.searchParams.get("date");
+	const includeTools = url.searchParams.get("include_tools") === "true";
 
 	if (roomId) {
 		const messages = getMessages(roomId).filter(
-			(m) => m.type !== "tool_call" && m.type !== "response"
+			(m) => includeTools || (m.type !== "tool_call" && m.type !== "response")
 		);
 		if (messages.length === 0) {
 			return new Response(JSON.stringify({ error: "No messages found for this room" }), {
@@ -50,7 +51,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const results = matchingRooms.map((room) => {
 		const messages = getMessages(room.id).filter(
-			(m) => m.type !== "tool_call" && m.type !== "response"
+			(m) => includeTools || (m.type !== "tool_call" && m.type !== "response")
 		);
 		return {
 			roomId: room.id,

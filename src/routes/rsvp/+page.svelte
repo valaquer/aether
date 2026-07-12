@@ -4,20 +4,7 @@
 
 	let { data } = $props();
 
-	let pasteText = $state('');
 	let ready = $state(false);
-
-	async function handleCheckNewMessages(roomId: string, afterId: string) {
-		try {
-			const res = await fetch(`/api/rsvp-check?roomId=${encodeURIComponent(roomId)}&after=${encodeURIComponent(afterId)}`);
-			if (!res.ok) return null;
-			const result = await res.json();
-			if (result.messages && result.messages.length > 0) {
-				return { messages: result.messages, lastId: result.messages[result.messages.length - 1].id };
-			}
-		} catch {}
-		return null;
-	}
 
 	async function handlePostAnnotations(roomId: string, body: string) {
 		try {
@@ -30,11 +17,6 @@
 	}
 
 	onMount(() => {
-		if (data.pasteMode) {
-			const stored = localStorage.getItem('rsvp-paste-text');
-			localStorage.removeItem('rsvp-paste-text');
-			pasteText = stored || '';
-		}
 		ready = true;
 	});
 </script>
@@ -46,13 +28,16 @@
 			roomId="direct-jeh"
 			onPostAnnotations={handlePostAnnotations}
 		/>
-	{:else if data.pasteMode}
-		<SpeedReader pasteText={pasteText} />
+	{:else if data.messages && data.messages.length > 0}
+		<SpeedReader
+			messages={data.messages}
+			roomId={data.roomId || ''}
+			onPostAnnotations={handlePostAnnotations}
+		/>
 	{:else}
 		<SpeedReader
-			messages={data.messages || []}
-			roomId={data.roomId || ''}
-			onCheckNewMessages={handleCheckNewMessages}
+			sessionId=""
+			roomId="direct-jeh"
 			onPostAnnotations={handlePostAnnotations}
 		/>
 	{/if}
