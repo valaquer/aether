@@ -1094,7 +1094,7 @@ import LucidePin from '~icons/lucide/pin';
 							</div>
 							<span class="msg-actions">
 								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => printMessage(msg)} title="Print message" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
+								<button class="control-btn" onclick={() => printMessage(msg)} title="Print from here" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
 								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
 								<button class="control-btn" onclick={() => { gaugeFlashMsgId = msg.id; setTimeout(() => { gaugeFlashMsgId = ''; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: selectedConvId, startFrom: msg.id }) }).catch(() => {}); }} title="Speed read from here" style="color: {gaugeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideGauge width={14} height={14} /></button>
 								</span>
@@ -1183,7 +1183,7 @@ import LucidePin from '~icons/lucide/pin';
 									placeholder=""
 									style="color: var(--color-text); font-family: var(--font-mono); font-size: 12px; font-weight: 300; border: none; max-height: 200px; overflow: hidden;"
 								></textarea>
-								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">R1X</span></div>
+								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">M2N</span></div>
 							</div>
 						</div>
 					</form>

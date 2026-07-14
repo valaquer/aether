@@ -75,7 +75,7 @@ export async function printMessage(msg: any, roomId: string): Promise<string | v
 		const res = await fetch("/api/print", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ roomId, messageId: msg.id }),
+			body: JSON.stringify({ roomId, fromMessageId: msg.id }),
 		});
 		if (!res.ok) return;
 		return msg.id;

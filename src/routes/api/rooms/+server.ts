@@ -23,7 +23,7 @@ function loadModelMap(): Record<string, string> {
 			const cols = lines[i].split(",");
 			if (cols.length >= 3) {
 				const raw = cols[2].trim();
-				const short = raw === "Opus 4.6" ? "4.6" : raw === "DeepSeek V4 Flash" ? "v4" : raw;
+				const short = raw === "Opus 4.6" ? "4.6" : raw === "DeepSeek V4 Flash" ? "v4" : raw === "Fable 5" ? "f5" : raw;
 				modelMap[cols[0].trim().toLowerCase()] = short;
 			}
 		}

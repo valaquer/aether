@@ -10,17 +10,21 @@ const PRINTER = "Brother_HL_L2400DWE";
 const PANDOC = "/opt/homebrew/bin/pandoc";
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { roomId, messageId, title } = await request.json();
+	const { roomId, messageId, fromMessageId, title } = await request.json();
 	if (!roomId) {
 		return new Response(JSON.stringify({ error: "Missing roomId" }), { status: 400 });
 	}
 
 	let messages = getMessages(roomId).filter(
-		(m) => m.type !== "tool_call" && m.type !== "response"
+		(m) => m.type !== "tool_call" && m.type !== "response" && m.sender !== "system"
 	);
 
 	if (messageId) {
 		messages = messages.filter((m) => m.id === messageId);
+	} else if (fromMessageId) {
+		const idx = messages.findIndex((m) => m.id === fromMessageId);
+		if (idx >= 0) messages = messages.slice(idx);
+		else return new Response(JSON.stringify({ error: "Start message not found" }), { status: 404 });
 	}
 
 	if (messages.length === 0) {
@@ -36,7 +40,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		? `# ${title}\n\n*${messages[0].sender} — printed from ${roomLabel} on ${dateStr}*\n`
 		: messageId
 			? `# Message from ${messages[0].sender}\n\n*Printed from ${roomLabel} on ${dateStr}*\n`
-			: `# ${roomLabel}\n\n*Printed on ${dateStr}*\n`;
+			: fromMessageId
+				? `# ${roomLabel} (${messages.length} messages)\n\n*Printed from ${messages[0].sender}'s message onwards — ${dateStr}*\n`
+				: `# ${roomLabel}\n\n*Printed on ${dateStr}*\n`;
 
 	const body = messages
 		.map((m) => {
