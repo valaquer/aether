@@ -27,6 +27,8 @@ interface RoomRow {
 	startedAt: string;
 }
 
+export const HOUSTON_ROOM_ID = "huddle-houston-watchtower";
+
 let db: Database.Database;
 
 export function formatTimestamp(date: Date): string {
@@ -131,6 +133,52 @@ export function initDb(): void {
 			created_at TEXT NOT NULL
 		)
 	`);
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS houston_alerts (
+			id TEXT PRIMARY KEY,
+			vendor TEXT NOT NULL,
+			message TEXT NOT NULL,
+			deep_link TEXT,
+			created_at TEXT NOT NULL,
+			cleared_at TEXT
+		)
+	`);
+}
+
+export function createHoustonAlert(alert: { id: string; vendor: string; message: string; deep_link?: string }): void {
+	initDb();
+	db.prepare("INSERT OR REPLACE INTO houston_alerts (id, vendor, message, deep_link, created_at) VALUES (?, ?, ?, ?, ?)")
+		.run(alert.id, alert.vendor, alert.message, alert.deep_link ?? null, new Date().toISOString());
+}
+
+export function getActiveHoustonAlerts(): { id: string; vendor: string; message: string; deep_link: string | null; created_at: string }[] {
+	initDb();
+	return db.prepare("SELECT id, vendor, message, deep_link, created_at FROM houston_alerts WHERE cleared_at IS NULL").all() as any[];
+}
+
+export function clearAllHoustonAlerts(): void {
+	initDb();
+	db.prepare("UPDATE houston_alerts SET cleared_at = ? WHERE cleared_at IS NULL").run(new Date().toISOString());
+}
+
+export function ensureHoustonRoom(): void {
+	initDb();
+	if (roomExists(HOUSTON_ROOM_ID)) {
+		// Ensure token row + pin exist even if room already does
+		db.prepare("INSERT OR IGNORE INTO huddle_tokens (roomId) VALUES (?)").run(HOUSTON_ROOM_ID);
+		pinRoom(HOUSTON_ROOM_ID);
+		return;
+	}
+	saveRoom({
+		id: HOUSTON_ROOM_ID,
+		type: "huddle",
+		name: "houston",
+		participants: [],
+		originalRoomId: "huddle-houston",
+		lastActivity: new Date().toISOString(),
+		startedAt: new Date().toISOString(),
+	});
+	db.prepare("INSERT OR IGNORE INTO huddle_tokens (roomId) VALUES (?)").run(HOUSTON_ROOM_ID);
 }
 
 export function getHarnessState(key: string): string | null {
