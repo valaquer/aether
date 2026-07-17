@@ -3,6 +3,7 @@ import { getActiveHoustonAlerts, createHoustonAlert, clearAllHoustonAlerts, save
 import { resolveActiveRoom } from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
 import { exec } from "child_process";
+import { sendToKitty } from "$lib/server/kitten";
 import { v4 } from "uuid";
 
 const OPEN_TEAM_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/open-team.sh";
@@ -68,8 +69,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		timestamp: msg.createdAt,
 	});
 
-	// Also wake Guru's team huddle (separate from watchtower)
-	exec(`bash ${OPEN_TEAM_SCRIPT} ${leader}`, { timeout: 60000 }, () => {});
+	// Wake Guru's team huddle + send autonomous triage nudge
+	exec(`bash ${OPEN_TEAM_SCRIPT} ${leader}`, { timeout: 60000 }, () => {
+		const nudge = `HOUSTON ALERT — ${vendor.toUpperCase()}: ${message} (${new Date().toISOString()}). You are authorized for autonomous triage per runbook-houston-triage Section 0 — do not wait for Boss. Read the watchtower log (${roomId}), run Triage Path A independently, post your findings there. Act on pre-authorized responses only; anything beyond the RUNBOOK: investigate, document, hold.`;
+		setTimeout(() => {
+			for (const m of members) {
+				sendToKitty(m, { sender: "system", room: roomId, body: nudge, timestamp: new Date().toISOString() }).catch(() => {});
+			}
+		}, 30000);
+	});
 
 	return new Response(JSON.stringify({ ok: true, roomId }), {
 		headers: { "Content-Type": "application/json" },
