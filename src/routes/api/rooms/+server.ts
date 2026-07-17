@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getRoomsByType, getAllRooms, getHuddleMembers, ensureHoustonRoom } from "$lib/server/aether-db";
+import { getRoomsByType, getAllRooms, getHuddleMembers } from "$lib/server/aether-db";
 import { getAliveTeammates } from "$lib/server/kitten";
 import fs from "fs";
 
@@ -72,7 +72,6 @@ function loadSidebarGroups(): { label: string; members: string[] }[] {
 }
 
 export const GET: RequestHandler = async () => {
-	ensureHoustonRoom();
 	const modelMap = loadModelMap();
 	const roster = loadRoster();
 	const alive = await getAliveTeammates();

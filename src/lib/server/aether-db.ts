@@ -27,7 +27,6 @@ interface RoomRow {
 	startedAt: string;
 }
 
-export const HOUSTON_ROOM_ID = "huddle-houston-watchtower";
 
 let db: Database.Database;
 
@@ -161,25 +160,27 @@ export function clearAllHoustonAlerts(): void {
 	db.prepare("UPDATE houston_alerts SET cleared_at = ? WHERE cleared_at IS NULL").run(new Date().toISOString());
 }
 
-export function ensureHoustonRoom(): void {
-	initDb();
-	if (roomExists(HOUSTON_ROOM_ID)) {
-		// Ensure token row + pin exist even if room already does
-		db.prepare("INSERT OR IGNORE INTO huddle_tokens (roomId) VALUES (?)").run(HOUSTON_ROOM_ID);
-		pinRoom(HOUSTON_ROOM_ID);
-		return;
-	}
-	saveRoom({
-		id: HOUSTON_ROOM_ID,
-		type: "huddle",
-		name: "houston",
-		participants: [],
-		originalRoomId: "huddle-houston",
-		lastActivity: new Date().toISOString(),
-		startedAt: new Date().toISOString(),
-	});
-	db.prepare("INSERT OR IGNORE INTO huddle_tokens (roomId) VALUES (?)").run(HOUSTON_ROOM_ID);
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
+
+function readEngineeringGroup(): string[] {
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		let inSection = false;
+		for (const line of raw.split("\n")) {
+			if (line.startsWith("## Sidebar Order")) { inSection = true; continue; }
+			if (inSection && line.startsWith("## ")) break;
+			if (!inSection || !line.includes(":")) continue;
+			const colonIdx = line.indexOf(":");
+			const label = line.slice(0, colonIdx).trim();
+			if (label === "Engineering") {
+				return line.slice(colonIdx + 1).split(",").map(m => m.trim().toLowerCase()).filter(Boolean);
+			}
+		}
+	} catch {}
+	return ["guru", "daksh", "ines"];
 }
+
+export { readEngineeringGroup };
 
 export function getHarnessState(key: string): string | null {
 	initDb();

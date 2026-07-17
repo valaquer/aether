@@ -868,9 +868,7 @@ import LucidePin from '~icons/lucide/pin';
 	let archiveFlashRoom = $state("");
 	let archivingTeammates = $state(new Set<string>());
 
-	const HOUSTON_ROOM_ID = "huddle-houston-watchtower";
 	async function archiveHuddle(roomId: string) {
-		if (roomId === HOUSTON_ROOM_ID) return;
 		try {
 			archiveFlashRoom = roomId;
 			if (selectedConvId === roomId) {
@@ -891,7 +889,7 @@ import LucidePin from '~icons/lucide/pin';
 		try {
 			selectedIndex = 0;
 			const onlineTeammates = sidebarItems.filter(x => x.kind === "teammate" && x.online).map(x => x.name);
-			const activeHuddles = sidebarItems.filter(x => x.kind === "huddle" && x.id !== HOUSTON_ROOM_ID).map(x => x.id);
+			const activeHuddles = sidebarItems.filter(x => x.kind === "huddle").map(x => x.id);
 			await Promise.all([
 				...onlineTeammates.map(name => fetch("/api/rooms/deactivate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).catch(() => {})),
 				...activeHuddles.map(roomId => fetch("/api/archive-huddle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roomId }) }).catch(() => {})),
@@ -980,7 +978,7 @@ import LucidePin from '~icons/lucide/pin';
 						onclick={() => selectedIndex = i}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (pinnedLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative;"
 					>
-						<div>{#if item.id === HOUSTON_ROOM_ID}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{#if !isPinnedHuddle && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{#if !isPinnedHuddle && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if isPinnedHuddle && item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
@@ -1018,13 +1016,13 @@ import LucidePin from '~icons/lucide/pin';
 						onclick={() => selectedIndex = i}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashRoom === item.id ? '#555' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)')}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (huddleLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative; {archiveFlashRoom === item.id ? 'opacity: 0.3;' : ''}"
 					>
-						<div>{#if item.id === HOUSTON_ROOM_ID}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
 						<span class="sidebar-actions">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title="{pinnedRoomIds.includes(item.id) ? 'Unpin' : 'Pin'}"><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : ''}" /></button>
-							{#if item.id !== HOUSTON_ROOM_ID}<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>{/if}
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>

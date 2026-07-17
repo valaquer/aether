@@ -6,14 +6,12 @@ import {
 	saveRoom,
 	saveMessage,
 	getRoomsByType,
-	HOUSTON_ROOM_ID,
 } from "./aether-db";
 import { emitEvent } from "./events";
 import { sendToKitty } from "./kitten";
 import { v4 } from "uuid";
 
 export function endHuddle(roomId: string): void {
-	if (roomId === HOUSTON_ROOM_ID) return;
 	const room = getRoom(roomId);
 	if (!room) return;
 
@@ -66,11 +64,9 @@ export function removeFromHuddle(roomId: string, participants: string[], silent?
 
 	if (updated.length === 0) {
 		clearTokenTimer(roomId);
-		if (roomId !== HOUSTON_ROOM_ID) {
-			setRoomType(roomId, "past");
-		}
+		setRoomType(roomId, "past");
 		if (!silent) emitEvent({ type: "huddle_update" });
-		return roomId === HOUSTON_ROOM_ID ? [] : null;
+		return null;
 	}
 
 	saveRoom({
