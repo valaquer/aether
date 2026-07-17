@@ -92,7 +92,6 @@ import LucidePin from '~icons/lucide/pin';
 	let eventSource: EventSource | undefined;
 	let messagesContainer: HTMLElement | undefined = $state();
 	let liveMirrorActive = $state(false);
-	let miniPressure = $state(false);
 	let houstonAlertActive = $state(false);
 	let pausedRoom = $state<string | null>(null);
 	let stoppedHuddles = $state<Set<string>>(new Set());
@@ -588,9 +587,7 @@ import LucidePin from '~icons/lucide/pin';
 			}).catch(() => {});
 		}, 60000);
 		sidebarPoller = setInterval(() => { loadSidebar(); }, 5000);
-		fetch("/api/mini-health").then(r => r.json()).then(d => { miniPressure = d.status === "pressure"; }).catch(() => {});
 		fetch("/api/houston-alert").then(r => r.json()).then(d => { houstonAlertActive = d.count > 0; }).catch(() => {});
-		miniHealthPoller = setInterval(() => { fetch("/api/mini-health").then(r => r.json()).then(d => { miniPressure = d.status === "pressure"; }).catch(() => {}); }, 30000);
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 	});
 
@@ -600,7 +597,6 @@ import LucidePin from '~icons/lucide/pin';
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		if (pulsePoller) clearInterval(pulsePoller);
 		if (sidebarPoller) clearInterval(sidebarPoller);
-		if (miniHealthPoller) clearInterval(miniHealthPoller);
 		if (typeof document !== 'undefined') {
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 		}
@@ -615,7 +611,6 @@ import LucidePin from '~icons/lucide/pin';
 	}
 	let pulsePoller: ReturnType<typeof setInterval> | undefined;
 	let sidebarPoller: ReturnType<typeof setInterval> | undefined;
-	let miniHealthPoller: ReturnType<typeof setInterval> | undefined;
 
 
 	$effect(() => {
@@ -1113,7 +1108,7 @@ import LucidePin from '~icons/lucide/pin';
 			<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
 				<div></div>
 				<div class="control-strip">
-					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} class:cop-car={miniPressure || houstonAlertActive} title={houstonAlertActive ? "HOUSTON alert" : miniPressure ? "Mini under pressure" : "Live mirror"}></span>
+					<span class="control-led" style="margin-right: 4px;" class:active={liveMirrorActive} class:pulsing={pulsingTeammates.length > 0} class:cop-car={houstonAlertActive} title={houstonAlertActive ? "HOUSTON alert" : "Live mirror"}></span>
 				<button class="control-btn" onclick={nukeAll} disabled={nuking} title="Nuke — close all teammates and huddles">
 					<LucidePower width={14} height={14} style="color: {nuking ? '#7a5e4a' : '#555'};" />
 				</button>

@@ -4,6 +4,7 @@ import { resolveActiveRoom } from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
 import { exec } from "child_process";
 import { sendToKitty } from "$lib/server/kitten";
+import { startTriageTimer } from "$lib/server/houston-triage";
 import { v4 } from "uuid";
 
 const OPEN_TEAM_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/open-team.sh";
@@ -23,11 +24,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const isRecovery = type === "recovery";
-
-	if (!isRecovery) {
-		createHoustonAlert({ id: v4(), vendor, message, deep_link });
-		emitEvent({ type: "houston_alert" });
-	}
 
 	const members = readEngineeringGroup();
 	const leader = members[0] || "guru";
@@ -69,9 +65,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		timestamp: msg.createdAt,
 	});
 
+	if (!isRecovery) {
+		startTriageTimer(roomId, vendor, message);
+	}
+
 	// Wake Guru's team huddle + send autonomous triage nudge
 	exec(`bash ${OPEN_TEAM_SCRIPT} ${leader}`, { timeout: 60000 }, () => {
-		const nudge = `HOUSTON ALERT — ${vendor.toUpperCase()}: ${message} (${new Date().toISOString()}). You are authorized for autonomous triage per runbook-houston-triage Section 0 — do not wait for Boss. Read the watchtower log (${roomId}), run Triage Path A independently, post your findings there. Act on pre-authorized responses only; anything beyond the RUNBOOK: investigate, document, hold.`;
+		const nudge = `HOUSTON ALERT — ${vendor.toUpperCase()}: ${message} (${new Date().toISOString()}). You are authorized for autonomous triage per runbook-houston-triage Section 0 — do not wait for Boss. Read the watchtower log (${roomId}), run Triage Path A independently, post your findings there. Act on pre-authorized responses only; anything beyond the RUNBOOK: investigate, document, hold. If blocked on Boss or user impact confirmed: POST to /api/houston-escalate with reason and message.`;
 		setTimeout(() => {
 			for (const m of members) {
 				sendToKitty(m, { sender: "system", room: roomId, body: nudge, timestamp: new Date().toISOString() }).catch(() => {});
@@ -85,6 +85,25 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 export const DELETE: RequestHandler = async () => {
+	const alerts = getActiveHoustonAlerts();
+
+	// Log clear event to Houston immutable DB before clearing
+	try {
+		const Database = (await import("better-sqlite3")).default;
+		const houstonDb = new Database("/Users/deepak-macmini/honeybloom/library/houston-app/houston.db");
+		houstonDb.pragma("busy_timeout = 30000");
+		const insert = houstonDb.prepare(
+			"INSERT INTO alert_log (ts, vendor, event_type, message, deep_link) VALUES (?, ?, ?, ?, ?)"
+		);
+		const ts = new Date().toISOString();
+		for (const alert of alerts) {
+			insert.run(ts, alert.vendor, "clear", alert.message, alert.deep_link);
+		}
+		houstonDb.close();
+	} catch (e) {
+		console.error("[HOUSTON] clear log to houston.db failed:", e);
+	}
+
 	clearAllHoustonAlerts();
 	emitEvent({ type: "houston_alert" });
 

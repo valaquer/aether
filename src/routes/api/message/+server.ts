@@ -20,6 +20,7 @@ import {
 
 import { v4 } from "uuid";
 import fs from "fs";
+import { clearTriageTimer, getTriageWatchtowerRoomId } from "$lib/server/houston-triage";
 
 interface StoredMessage {
 	id: string;
@@ -174,6 +175,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	saveMessage(msg);
 
+	if (sender !== "system" && sender !== "boss" && resolvedRoom === getTriageWatchtowerRoomId()) {
+		clearTriageTimer();
+	}
 
 	emitEvent({
 		type: "message",
