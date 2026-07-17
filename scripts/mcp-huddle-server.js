@@ -185,6 +185,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				],
 			};
 		case "read_room": {
+			if (args.roomId?.startsWith("direct-burt") && process.env.FACADE_SENDER !== "burt") {
+				return { content: [{ type: "text", text: "Access denied — direct-burt rooms are restricted to Burt only." }] };
+			}
 			try {
 				const params = new URLSearchParams({ roomId: args.roomId });
 				const res = await fetch(`${AETHER_URL}/api/huddle-history?${params}`);
