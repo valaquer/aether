@@ -96,7 +96,7 @@ import LucidePin from '~icons/lucide/pin';
 	let pausedRoom = $state<string | null>(null);
 	let stoppedHuddles = $state<Set<string>>(new Set());
 	let sidebarLoaded = $state(false);
-	let focusMode = $state(false);
+	let focusMode = $state(typeof localStorage !== 'undefined' && localStorage.getItem('aether-reading-mode') === 'true');
 	let rewindIndex = $state<number | null>(null);
 	let pinnedRoomIds = $state<string[]>([]);
 
@@ -1075,13 +1075,13 @@ import LucidePin from '~icons/lucide/pin';
 		<!-- Chat column (col 3 — 570px) -->
 		<div style="position: relative; overflow: hidden;" class="flex flex-col">
 			<!-- Conversation area (scrollable) -->
-			<div class="flex-1 overflow-y-auto" style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : '120px'};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
+			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : '120px'};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
 				<div class="py-2" style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px; margin-top: auto;">
 					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg}
-						<div style="padding-top: {msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)'}; text-align: left; align-self: start;">
-							<p style="margin: 0; font-family: var(--font-sans); color: var(--color-text-muted); font-size: 12px; line-height: 1.8;">{msg.sender}</p>
+						<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
+							<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">{msg.sender}</p>
 						</div>
-						<div class="msg-row" data-msg-id={msg.id} style="padding-top: 2rem; padding-bottom: 12px; position: relative;">
+						<div class="msg-row" data-msg-id={msg.id} style="padding-top: {focusMode ? '3rem' : '2rem'}; padding-bottom: {focusMode ? '24px' : '12px'}; position: relative;">
 							<div style="border-left: {msg.sender === 'boss' ? '2px solid #5A3E2E' : '2px solid transparent'}; padding-left: 1.5rem;">
 								{#if msg.toolCall}
 									{@html renderToolCard(msg.content)}
@@ -1138,7 +1138,7 @@ import LucidePin from '~icons/lucide/pin';
 				<span class="control-btn" title="Active account: {activeAccount === 'G' ? 'Gmail' : activeAccount === 'O' ? 'Oovar' : 'Unknown'}">
 					<span style="font-family: var(--font-sans); font-size: 14px; color: #555;">{activeAccount}</span>
 				</span>
-				<button class="control-btn" onclick={() => focusMode = !focusMode} title={focusMode ? "Exit focus mode" : "Focus mode"}>
+				<button class="control-btn" onclick={() => { focusMode = !focusMode; localStorage.setItem('aether-reading-mode', String(focusMode)); }} title={focusMode ? "Exit reading mode" : "Reading mode"}>
 						{#if focusMode}
 							<LucideMinimize2 width={14} height={14} style="color: #7a5e4a;" />
 						{:else}
@@ -1468,5 +1468,23 @@ import LucidePin from '~icons/lucide/pin';
 	@keyframes notification-pulse {
 		0%, 100% { color: #ff3333; }
 		50% { color: #ffffff; }
+	}
+	.sender-label {
+		font-family: var(--font-sans);
+	}
+	.reading-mode .sender-label {
+		font-family: 'OpenDyslexic', var(--font-sans);
+	}
+	.reading-mode {
+		font-family: 'OpenDyslexic', var(--font-mono) !important;
+		font-size: 18px !important;
+		line-height: 2.2 !important;
+	}
+	.reading-mode .msg-row {
+		padding-top: 3rem !important;
+		padding-bottom: 24px !important;
+	}
+	.reading-mode .md-content p {
+		margin: 1.6em 0 !important;
 	}
 </style>
