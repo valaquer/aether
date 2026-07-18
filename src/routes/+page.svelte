@@ -1075,7 +1075,7 @@ import LucidePin from '~icons/lucide/pin';
 		<!-- Chat column (col 3 — 570px) -->
 		<div style="position: relative; overflow: hidden;" class="flex flex-col">
 			<!-- Conversation area (scrollable) -->
-			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : '120px'};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
+			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
 				<div class="py-2" style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px; margin-top: auto;">
 					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg}
 						<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
@@ -1138,7 +1138,7 @@ import LucidePin from '~icons/lucide/pin';
 				<span class="control-btn" title="Active account: {activeAccount === 'G' ? 'Gmail' : activeAccount === 'O' ? 'Oovar' : 'Unknown'}">
 					<span style="font-family: var(--font-sans); font-size: 14px; color: #555;">{activeAccount}</span>
 				</span>
-				<button class="control-btn" onclick={() => { focusMode = !focusMode; localStorage.setItem('aether-reading-mode', String(focusMode)); }} title={focusMode ? "Exit reading mode" : "Reading mode"}>
+				<button class="control-btn" onclick={() => { focusMode = !focusMode; localStorage.setItem('aether-reading-mode', String(focusMode)); if (focusMode && messagesContainer) { setTimeout(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 50); } }} title={focusMode ? "Exit reading mode" : "Reading mode"}>
 						{#if focusMode}
 							<LucideMinimize2 width={14} height={14} style="color: #7a5e4a;" />
 						{:else}
@@ -1166,7 +1166,7 @@ import LucidePin from '~icons/lucide/pin';
 			</div>
 			<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
 				<div style="padding-top: calc(0.5rem - 1px); text-align: left; align-self: start;">
-					<p style="margin: 0; font-family: var(--font-sans); color: var(--color-text-muted); font-size: 12px; line-height: 1.8;">boss</p>
+					<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">boss</p>
 				</div>
 				<div style="padding-top: 0; padding-bottom: 1rem;">
 					<form onsubmit={(e) => { e.preventDefault(); sendMessage(); }}>
@@ -1180,7 +1180,7 @@ import LucidePin from '~icons/lucide/pin';
 									class="w-full bg-transparent outline-none resize-none"
 									rows="1"
 									placeholder=""
-									style="color: var(--color-text); font-family: var(--font-mono); font-size: 12px; font-weight: 300; border: none; max-height: 200px; overflow: hidden;"
+									style="color: var(--color-text); font-family: {focusMode ? "'OpenDyslexic', var(--font-mono)" : 'var(--font-mono)'}; font-size: {focusMode ? '18px' : '12px'}; font-weight: 300; border: none; max-height: 200px; overflow: hidden; line-height: {focusMode ? '2.2' : '1.8'};"
 								></textarea>
 								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">M2N</span></div>
 							</div>
