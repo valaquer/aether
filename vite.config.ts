@@ -30,7 +30,7 @@ export default defineConfig({
 	// Allow external access via ngrok tunnel host
 	server: {
 		host: "0.0.0.0",
-		port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
+		port: 51730,
 		allowedHosts: true,
 	},
 	optimizeDeps: {
