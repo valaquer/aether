@@ -195,12 +195,12 @@ export function setHarnessState(key: string, value: string): void {
 	db.prepare("INSERT OR REPLACE INTO harness_state (key, value) VALUES (?, ?)").run(key, value);
 }
 
-export function saveMessage(msg: StoredMessage): void {
+export function saveMessage(msg: StoredMessage): boolean {
 	initDb();
 	const stmt = db.prepare(
 		"INSERT OR IGNORE INTO messages (id, conversationId, sender, content, createdAt, type) VALUES (?, ?, ?, ?, ?, ?)"
 	);
-	stmt.run(
+	const result = stmt.run(
 		msg.id,
 		msg.conversationId,
 		msg.sender,
@@ -208,6 +208,7 @@ export function saveMessage(msg: StoredMessage): void {
 		msg.createdAt,
 		msg.type || "message"
 	);
+	return result.changes > 0;
 }
 
 export function resolveActiveRoom(originalRoomId: string): string | null {

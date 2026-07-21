@@ -3,6 +3,15 @@ import path from "path";
 import fs from "fs";
 import { emitEvent, type AetherEvent } from "./events";
 import {
+	codexTeammateFromCwd,
+	consumeCompleteCodexJsonl,
+	isCodexRolloutPath,
+	lastCompleteJsonlOffset,
+	parseCodexRolloutState,
+	registerCodexRollouts,
+	type CodexRolloutState,
+} from "./codex-rollout";
+import {
 	getActiveRoomsForTeammate,
 	getHarnessState,
 	setHarnessState,
@@ -13,6 +22,10 @@ const OPENCODE_DB = "/Users/deepak-macmini/.local/share/opencode/opencode.db";
 const CLAUDE_PROJECTS_DIR = "/Users/deepak-macmini/.claude/projects";
 const CLAUDE_MINI_PROJECTS_DIR = "/Users/deepak-macmini/honeybloom/.claude-mini/projects";
 const CLAUDE_PROJECT_PREFIXES = ["-Users-deepak-macmini-honeybloom-", "-Users-d-patnaik-honeybloom-"];
+const CODEX_STATE_DB = "/Users/deepak-macmini/.codex/state_5.sqlite";
+const CODEX_SESSIONS_DIR = "/Users/deepak-macmini/.codex/sessions";
+const HONEYBLOOM_ROOT = "/Users/deepak-macmini/honeybloom";
+const CODEX_ROLLOUT_STATE_KEY = "codex_rollout_state_v1";
 
 const CREDENTIAL_PATTERNS = [
 	/auth\.json/,
@@ -98,18 +111,21 @@ function applyJunkFilter(text: string): string {
 function emitTextResponse(
 	part: Record<string, unknown>,
 	teammate: string,
-	createdAt: string
-): void {
+	createdAt: string,
+	stableId?: string
+): boolean {
 	const text = String(part.text || "");
-	if (!text.trim()) return;
-	const id = `harness-text-${teammate}-${createdAt}-${Math.random().toString(36).slice(2)}`;
+	if (!text.trim()) return true;
+	const id =
+		stableId || `harness-text-${teammate}-${createdAt}-${Math.random().toString(36).slice(2)}`;
 	const cleaned = redactCredentials(text);
 	const filtered = applyJunkFilter(cleaned);
-	if (!filtered.trim()) return;
+	if (!filtered.trim()) return true;
 	const activeRooms = getActiveRoomsForTeammate(teammate);
+	if (activeRooms.length === 0) return false;
 	for (const room of activeRooms) {
 		const roomId = `${id}-${room}`;
-		saveMessage({
+		const inserted = saveMessage({
 			id: roomId,
 			conversationId: room,
 			sender: teammate,
@@ -117,6 +133,7 @@ function emitTextResponse(
 			createdAt,
 			type: "response",
 		});
+		if (!inserted) continue;
 		const event: AetherEvent = {
 			type: "message" as const,
 			id: roomId,
@@ -128,6 +145,7 @@ function emitTextResponse(
 		};
 		emitEvent(event);
 	}
+	return true;
 }
 
 let lastRowId: number = Number(getHarnessState("opencode_last_rowid") || "0");
@@ -159,6 +177,142 @@ function persistJsonlOffsets(): void {
 let claudeWatchers: fs.FSWatcher[] = [];
 let miniPollInterval: ReturnType<typeof setInterval> | null = null;
 const claudeDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+interface CodexRollout {
+	id: string;
+	path: string;
+	teammate: string;
+}
+
+let codexRolloutState: CodexRolloutState = parseCodexRolloutState(
+	getHarnessState(CODEX_ROLLOUT_STATE_KEY)
+);
+
+function persistCodexRolloutState(): void {
+	setHarnessState(CODEX_ROLLOUT_STATE_KEY, JSON.stringify(codexRolloutState));
+}
+
+function getLastCompleteFileOffset(filePath: string): number {
+	let fd: number | null = null;
+	try {
+		const size = fs.statSync(filePath).size;
+		if (size === 0) return 0;
+		fd = fs.openSync(filePath, "r");
+		const chunkSize = 64 * 1024;
+		let end = size;
+		while (end > 0) {
+			const start = Math.max(0, end - chunkSize);
+			const buffer = Buffer.alloc(end - start);
+			fs.readSync(fd, buffer, 0, buffer.length, start);
+			const complete = lastCompleteJsonlOffset(buffer);
+			if (complete > 0) return start + complete;
+			end = start;
+		}
+		return 0;
+	} catch {
+		return 0;
+	} finally {
+		if (fd !== null) fs.closeSync(fd);
+	}
+}
+
+function discoverCodexRollouts(): CodexRollout[] {
+	if (!fs.existsSync(CODEX_STATE_DB)) return [];
+	let db: Database.Database | null = null;
+	try {
+		db = new Database(CODEX_STATE_DB, { readonly: true });
+		db.pragma("query_only = true");
+		const rows = db
+			.prepare(
+				`SELECT id, rollout_path, cwd
+				 FROM threads
+				 WHERE source = 'cli' AND archived = 0
+				 AND cwd LIKE ?
+				 ORDER BY created_at_ms ASC, id ASC`
+			)
+			.all(`${HONEYBLOOM_ROOT}/%`) as { id: string; rollout_path: string; cwd: string }[];
+		const rollouts: CodexRollout[] = [];
+		for (const row of rows) {
+			const rolloutPath = path.resolve(row.rollout_path);
+			const teammate = codexTeammateFromCwd(row.cwd, HONEYBLOOM_ROOT);
+			if (!teammate || !isCodexRolloutPath(rolloutPath, CODEX_SESSIONS_DIR)) continue;
+			if (!fs.existsSync(rolloutPath)) continue;
+			rollouts.push({ id: row.id, path: rolloutPath, teammate });
+		}
+		return rollouts;
+	} catch (e) {
+		console.error("harness-reader: Codex rollout discovery failed", e);
+		return [];
+	} finally {
+		if (db) db.close();
+	}
+}
+
+function registerDiscoveredCodexRollouts(rollouts: CodexRollout[]): void {
+	const discovered = rollouts.map((rollout) => ({
+		path: rollout.path,
+		completeSize: getLastCompleteFileOffset(rollout.path),
+	}));
+	const registered = registerCodexRollouts(codexRolloutState, discovered);
+	codexRolloutState = registered.state;
+	if (registered.changed) persistCodexRolloutState();
+}
+
+function checkCodexRollout(rollout: CodexRollout): void {
+	let fd: number | null = null;
+	try {
+		const stat = fs.statSync(rollout.path);
+		let offset = codexRolloutState.offsets[rollout.path] ?? 0;
+		if (stat.size < offset) offset = 0;
+		if (stat.size <= offset) return;
+
+		fd = fs.openSync(rollout.path, "r");
+		const buffer = Buffer.alloc(stat.size - offset);
+		fs.readSync(fd, buffer, 0, buffer.length, offset);
+		fs.closeSync(fd);
+		fd = null;
+
+		const nextOffset = consumeCompleteCodexJsonl(buffer, offset, (response) =>
+			emitTextResponse(
+				{ text: response.text },
+				rollout.teammate,
+				response.timestamp || new Date().toISOString(),
+				`codex-text-${rollout.id}-${response.recordOffset}`
+			)
+		);
+		if (nextOffset !== codexRolloutState.offsets[rollout.path]) {
+			codexRolloutState.offsets[rollout.path] = nextOffset;
+			persistCodexRolloutState();
+		}
+	} catch (e) {
+		console.error(`harness-reader: Codex rollout read failed for ${rollout.teammate}`, e);
+	} finally {
+		if (fd !== null) fs.closeSync(fd);
+	}
+}
+
+function pollCodexRollouts(): void {
+	const rollouts = discoverCodexRollouts();
+	registerDiscoveredCodexRollouts(rollouts);
+	for (const rollout of rollouts) checkCodexRollout(rollout);
+}
+
+function startCodexReader(): void {
+	const g = globalThis as Record<string, unknown>;
+	if (g.__codexReaderInterval) return;
+	const rollouts = discoverCodexRollouts();
+	registerDiscoveredCodexRollouts(rollouts);
+	for (const rollout of rollouts) checkCodexRollout(rollout);
+	g.__codexReaderInterval = setInterval(pollCodexRollouts, 2000);
+	console.log(`harness-reader: watching ${rollouts.length} Codex rollouts`);
+}
+
+function stopCodexReader(): void {
+	const g = globalThis as Record<string, unknown>;
+	const interval = g.__codexReaderInterval as ReturnType<typeof setInterval> | undefined;
+	if (interval) clearInterval(interval);
+	delete g.__codexReaderInterval;
+}
 
 function getActiveJsonlFile(projectDir: string): string | null {
 	try {
@@ -422,6 +576,7 @@ export function startHarnessReader(): void {
 	if (g.__opencodeReaderActive) {
 		// Still start Claude reader if needed (has its own guard)
 		startClaudeCodeReader();
+		startCodexReader();
 		return;
 	}
 
@@ -484,6 +639,8 @@ export function startHarnessReader(): void {
 
 	// Claude Code JSONL reader
 	startClaudeCodeReader();
+	// Codex rollout reader
+	startCodexReader();
 }
 
 export function stopHarnessReader(): void {
@@ -498,4 +655,5 @@ export function stopHarnessReader(): void {
 	const _g = globalThis as Record<string, unknown>;
 	_g.__opencodeReaderActive = false;
 	stopClaudeCodeReader();
+	stopCodexReader();
 }
