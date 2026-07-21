@@ -285,7 +285,7 @@ Activation: Boss types `/start-livemirror` in Facade input bar. Deactivation: `/
 
 **Status indicator (REQ-135):** Green LED (8px circle, `#4ade80` with glow) left of "boss" label. Gray (`#666`) when off.
 
-### Terminal Chatter Catcher (PostResponse, May 26)
+### Terminal Chatter Catcher (PostResponse + Codex Rollouts, REQ-301)
 
 Captures model text responses (non-MCP output) to the activity column. Two-part system:
 
@@ -297,7 +297,11 @@ Captures model text responses (non-MCP output) to the activity column. Two-part 
 
 4. **Endpoint** (`/api/tool-activity`): Saves as `type: "response"` in SQLite, emits SSE with `response: true`. Rendered alongside tool_call cards in the activity column.
 
-**Harness gap:** PostResponse hook type exists only in the OpenCode fork. Claude Code has no equivalent — terminal chatter is OpenCode-only.
+5. **Codex rollout reader** (`src/lib/server/harness-reader.ts`, `codex-rollout.ts`): Polls Codex's thread registry and every qualifying non-archived Honeybloom rollout every 2s. It consumes only the canonical assistant `response_item`/`output_text` representation, concatenates ordered text parts, and ignores duplicate `event_msg` records plus user, tool, and reasoning records. Exact one-level CWD and sessions-directory checks isolate teammate identity and exclude unrelated rollouts.
+
+6. **Durability and routing:** A single SQLite-backed `codex_rollout_state_v1` cursor map is persisted at the complete-line cutover boundary before polling. Newly discovered post-cutover rollouts start at byte zero; partial JSONL lines wait for completion. Stable thread+record-offset+room IDs make retries and restarts idempotent, while no-room responses remain unadvanced for later retry. Responses pass through the shared credential and junk filters, persist as `type: "response"` in every active teammate room, and emit SSE only after a new DB insert.
+
+**Harness coverage:** OpenCode and Codex terminal chatter are captured. Claude Code still has no equivalent PostResponse source.
 
 ### Wakeup Message (REQ-85, fixed May 26)
 
@@ -357,6 +361,7 @@ Captures model text responses (non-MCP output) to the activity column. Two-part 
 | REQ-262 | Multi-huddle auto-pause fix. All huddles implicitly paused unless in `stoppedHuddles` — removes single-string `pausedRoom` dependency for huddles. `queuedMessageIds` changed from flat `string[]` to per-room `Record<string, string[]>`. SSE handler, DB load path, flushQueue, stepOne, sendMessage all updated. `isCurrentRoomPaused` $derived centralizes pause check. Ctrl+Right calls `stepOne()`. | Shipped |
 | REQ-264 | Sidebar nav clamp — Ctrl+Up/Down stops at top/bottom instead of wrapping. `Math.min`/`Math.max` replaces modulo. | Shipped |
 | — | **Terminal chatter catcher** — PostResponse hook in OpenCode fork. Captures model text output to Facade activity column. Junk filter (≤10 words + sit-out keywords). OpenCode-only (Claude Code has no PostResponse hook type). | Shipped May 26 |
+| REQ-301 | **Codex terminal chatter capture** — durable complete-line rollout cursors, canonical assistant-response parsing, concurrent-session discovery, per-room stable IDs, retry-on-no-room, shared redaction/junk filtering, SQLite persistence, and SSE fan-out. Chat, tool activity, and Sol responses reconcile in the Aether DB. | Shipped Jul 21 |
 | — | **Summary cards v2** — Read shows filename + partial/full, Grep shows filename, Glob shows match count, Bash shows command (80 chars), Edit/Write show filename. Case-insensitive tool name matching. PreToolUse temp file bridges tool input for OpenCode. | Shipped May 26 |
 | — | **Wakeup fix** — OpenCode now receives wakeup prompt via `--prompt` flag (was launching bare). `build_wakeup_message()` moved outside Claude Code branch. | Shipped May 26 |
 
