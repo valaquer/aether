@@ -11,6 +11,8 @@
 	import LucideRadio from '~icons/lucide/radio';
 	import LucideMaximize2 from '~icons/lucide/maximize-2';
 	import LucideMinimize2 from '~icons/lucide/minimize-2';
+	import LucidePanelRightClose from '~icons/lucide/panel-right-close';
+	import LucidePanelRightOpen from '~icons/lucide/panel-right-open';
 	import LucideX from '~icons/lucide/x';
 	import LucideFiles from '~icons/lucide/files';
 	import LucideBookmark from '~icons/lucide/bookmark';
@@ -97,6 +99,7 @@ import LucidePin from '~icons/lucide/pin';
 	let stoppedHuddles = $state<Set<string>>(new Set());
 	let sidebarLoaded = $state(false);
 	let focusMode = $state(typeof localStorage !== 'undefined' && localStorage.getItem('aether-reading-mode') === 'true');
+	let activityPanelVisible = $state(true);
 	let rewindIndex = $state<number | null>(null);
 	let pinnedRoomIds = $state<string[]>([]);
 
@@ -1137,6 +1140,13 @@ import LucidePin from '~icons/lucide/pin';
 							<LucideMaximize2 width={14} height={14} style="color: #555;" />
 						{/if}
 					</button>
+				<button class="control-btn" onclick={() => activityPanelVisible = !activityPanelVisible} title={activityPanelVisible ? "Hide activity panel" : "Show activity panel"}>
+					{#if activityPanelVisible}
+						<LucidePanelRightClose width={14} height={14} style="color: #555;" />
+					{:else}
+						<LucidePanelRightOpen width={14} height={14} style="color: #7a5e4a;" />
+					{/if}
+				</button>
 				<span style="position: relative;">
 					<button class="control-btn" onclick={() => workbenchDropdownOpen = !workbenchDropdownOpen} title="Workbench apps">
 						<LucideLayoutGrid width={14} height={14} style="color: {workbenchDropdownOpen ? '#7a5e4a' : '#555'};" />
@@ -1185,7 +1195,7 @@ import LucidePin from '~icons/lucide/pin';
 		<!-- Gap col 4 -->
 		<div></div>
 		<!-- Duplicate message feed (col 5 — 570px, read-only) -->
-		<div bind:this={activityContainer} style="overflow-y: auto; background: var(--color-bg); visibility: {focusMode ? 'hidden' : 'visible'};">
+		<div bind:this={activityContainer} style="overflow-y: auto; background: var(--color-bg); visibility: {focusMode || !activityPanelVisible ? 'hidden' : 'visible'};">
 			<div class="py-2" style="padding-top: 0.5rem;">
 				<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
 					{#each activityCards as msg}
