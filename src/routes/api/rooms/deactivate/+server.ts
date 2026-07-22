@@ -2,7 +2,7 @@ import type { RequestHandler } from "./$types";
 import { resolveActiveRoom, setRoomType } from "$lib/server/aether-db";
 import { deactivateTeammate } from "$lib/server/active-teammates";
 import { emitEvent } from "$lib/server/events";
-import { isTabAlive, closeKittyTab, killMiniProcess } from "$lib/server/kitten";
+import { cleanupMiniAndMaybeCloseTab } from "$lib/server/kitten";
 import { removeFromAllHuddles } from "$lib/server/huddle-helpers";
 import { appendFileSync } from "fs";
 
@@ -38,13 +38,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// Kill process + close tab AFTER response sent (2s delay for clean self-kill)
 	setTimeout(async () => {
-		const killed = await killMiniProcess(teammate);
-		log(`${teammate} killMiniProcess=${killed}`);
-		const tabAlive = await isTabAlive(teammate);
-		log(`${teammate} isTabAlive=${tabAlive}`);
-		if (tabAlive) {
-			const closed = await closeKittyTab(teammate);
-			log(`${teammate} closeKittyTab=${closed}`);
+		try {
+			const result = await cleanupMiniAndMaybeCloseTab(teammate);
+			log(`${teammate} cleanup=${JSON.stringify(result)}`);
+		} catch (err) {
+			log(`${teammate} cleanup FAILED: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}, 2000);
 

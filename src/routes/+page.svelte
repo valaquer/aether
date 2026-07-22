@@ -456,7 +456,6 @@ import LucidePin from '~icons/lucide/pin';
 		if (!content || !selectedConvId) return;
 		newMessage = "";
 		await tick();
-		resizeInput();
 		userScrolledUp = false;
 		if (rewindIndex !== null) { rewindIndex = null; clearRewindPosition(selectedConvId); }
 
@@ -574,7 +573,6 @@ import LucidePin from '~icons/lucide/pin';
 		if (savedIds) { try { const parsed = JSON.parse(savedIds); if (Array.isArray(parsed)) { queuedMessageIds = {}; } else { queuedMessageIds = parsed; } } catch {} }
 		loadSidebar();
 		loadBookmarks();
-		resizeInput();
 		fetch("/api/livemirror-status").then(r => r.json()).then(d => { liveMirrorActive = d.active; }).catch(() => {});
 		fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {});
 		fetchActiveAccount();
@@ -603,12 +601,6 @@ import LucidePin from '~icons/lucide/pin';
 	});
 
 	let inputRef: HTMLTextAreaElement | undefined = $state();
-
-	function resizeInput() {
-		if (!inputRef) return;
-		inputRef.style.height = '0';
-		inputRef.style.height = Math.min(inputRef.scrollHeight, 200) + 'px';
-	}
 	let pulsePoller: ReturnType<typeof setInterval> | undefined;
 	let sidebarPoller: ReturnType<typeof setInterval> | undefined;
 
@@ -1159,7 +1151,7 @@ import LucidePin from '~icons/lucide/pin';
 						</div>
 					{/if}
 				</span>
-				<button class="control-btn" onclick={async () => { const text = newMessage?.trim(); if (text) { gaugeFlashBar = true; setTimeout(() => { gaugeFlashBar = false; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => {}); newMessage = ''; await tick(); resizeInput(); } }} title="Speed read input bar text" style="color: {gaugeFlashBar ? '#7a5e4a' : '#555'};">
+				<button class="control-btn" onclick={async () => { const text = newMessage?.trim(); if (text) { gaugeFlashBar = true; setTimeout(() => { gaugeFlashBar = false; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) }).catch(() => {}); newMessage = ''; await tick(); } }} title="Speed read input bar text" style="color: {gaugeFlashBar ? '#7a5e4a' : '#555'};">
 						<LucideGauge width={14} height={14} />
 				</button>
 				</div>
@@ -1176,11 +1168,10 @@ import LucidePin from '~icons/lucide/pin';
 									bind:value={newMessage}
 									bind:this={inputRef}
 									onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-									oninput={resizeInput}
 									class="w-full bg-transparent outline-none resize-none"
 									rows="1"
 									placeholder=""
-									style="color: var(--color-text); font-family: {focusMode ? "'OpenDyslexic', var(--font-mono)" : 'var(--font-mono)'}; font-size: {focusMode ? '18px' : '12px'}; font-weight: 300; border: none; max-height: 200px; overflow: hidden; line-height: {focusMode ? '2.2' : '1.8'};"
+									style="color: var(--color-text); font-family: {focusMode ? "'OpenDyslexic', var(--font-mono)" : 'var(--font-mono)'}; font-size: {focusMode ? '18px' : '12px'}; font-weight: 300; border: none; field-sizing: content; max-height: 200px; overflow: hidden; line-height: {focusMode ? '2.2' : '1.8'};"
 								></textarea>
 								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">M2N</span></div>
 							</div>

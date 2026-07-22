@@ -180,11 +180,13 @@ Design constants:
 
 | File | Purpose |
 |---|---|
-| `src/lib/server/kitten.ts` | Discovers Kitty socket (`KITTY_LISTEN_ON` or `/tmp/honeybloom-kitty-*.sock`). Exports: `sendToKitty()` (message delivery), `discoverSocket()` (socket discovery), `isTabAlive(teammate)` (checks if Kitty tab exists via `kitten @ ls --match`), `closeKittyTab(teammate)` (closes tab via `kitten @ close-tab --match`). Both check functions are failure-tolerant (return false on error). |
+| `src/lib/server/kitten.ts` | Discovers the Kitty socket; queues message delivery; routes the fallback inbox only to Janus teammates currently using OpenCode; inventories, launches, and closes teammate tabs; and performs birth-fingerprinted, exact-CWD Claude/Codex process cleanup before allowing tab closure. Key exports: `sendToKitty()`, `discoverSocket()`, `getAliveTeammates()`, `isTabAlive()`, `launchTeammate()`, `cleanupMiniAndMaybeCloseTab()`, plus the focused harness/inbox and cleanup-command helpers used by tests. |
 | `src/lib/server/active-teammates.ts` | JSON file state at `/tmp/facade-active-teammates.json`. Export: `activateTeammate()`, `deactivateTeammate()`, `getActiveTeammates()` |
 | `src/lib/server/events.ts` | Wraps Node.js EventEmitter. Export: `emitEvent()`, `onEvent()`. Used for SSE push. |
 | `src/routes/api/rooms/activate/+server.ts` | POST endpoint called by `kitty-open-teammate.sh` on tab open. Calls `activateTeammate()`, saves room to SQLite, emits SSE `room_update`. |
-| `src/routes/api/rooms/deactivate/+server.ts` | POST endpoint called by `/end-session` on tab close or hover × dismiss. Smart dismiss (REQ-138): checks if Kitty tab is alive via `isTabAlive()` — if so, closes it via `closeKittyTab()` before deactivating. Then calls `deactivateTeammate()`, handles huddle cleanup (ends if host, removes + advances token if participant), emits SSE `room_update`. |
+| `src/routes/api/rooms/deactivate/+server.ts` | POST endpoint called by `/end-session` on tab close or hover × dismiss. Room and huddle state changes commit and emit `room_update` before delayed process cleanup. `cleanupMiniAndMaybeCloseTab()` terminates only the target teammate's birth-fingerprinted Claude/Codex process tree; if cleanup fails, the failure is logged and the Kitty tab stays open. The tab closes only after cleanup succeeds. |
+
+`sendToKitty()` reads the canonical Janus CSV before writing an OpenCode inbox record. Only recipients whose current harness is `OpenCode` receive `/tmp/opencode-inbox-{teammate}.jsonl`; Codex and Claude recipients use Kitty delivery without creating a stale Medusa backlog.
 
 ### Control Strip (REQ-139, REQ-142)
 
@@ -194,7 +196,7 @@ Invisible toolbar above the input bar, inside the absolute-positioned input area
 
 The input bar uses `position: absolute; bottom: 0` inside the `position: relative` main content container. It floats over the chat area — when the textarea grows, it expands upward over chat messages without affecting the chat scroll container's height or scroll position. The chat scroll container has `padding-bottom: 130px` to clear the default single-line input bar height (~117px + breathing room). This value is coupled to the input bar layout — if the input bar's default height changes, the padding must be updated.
 
-Textarea auto-sizing uses CSS `field-sizing: content` (REQ-131) — native browser layout, no JavaScript. Replaced the autosize npm library which caused intermittent input bar jumps due to its intermediate `height: auto` reset during resize measurement. `max-height: 200px` caps growth; `rows="1"` sets minimum height.
+Textarea auto-sizing uses CSS `field-sizing: content` (REQ-131, restored by REQ-304) – native browser layout, no JavaScript. Do not add a per-input `height = 0` / `scrollHeight` measurement loop: it forces synchronous layout on every keystroke and becomes visibly laggy in rooms with large activity DOMs. `max-height: 200px` caps growth; `rows="1"` sets minimum height.
 
 ### API Layer
 
@@ -362,6 +364,8 @@ Captures model text responses (non-MCP output) to the activity column. Two-part 
 | REQ-264 | Sidebar nav clamp — Ctrl+Up/Down stops at top/bottom instead of wrapping. `Math.min`/`Math.max` replaces modulo. | Shipped |
 | — | **Terminal chatter catcher** — PostResponse hook in OpenCode fork. Captures model text output to Facade activity column. Junk filter (≤10 words + sit-out keywords). OpenCode-only (Claude Code has no PostResponse hook type). | Shipped May 26 |
 | REQ-301 | **Codex terminal chatter capture** — durable complete-line rollout cursors, canonical assistant-response parsing, concurrent-session discovery, per-room stable IDs, retry-on-no-room, shared redaction/junk filtering, SQLite persistence, and SSE fan-out. Chat, tool activity, and Sol responses reconcile in the Aether DB. | Shipped Jul 21 |
+| REQ-303 | **Sol lifecycle safety** – Janus-aware inbox routing, birth-fingerprinted Claude/Codex process-tree cleanup, fail-closed Kitty tab closure, canonical Janus path correction, and focused lifecycle tests. Used for the serial 26-teammate Sol migration with protected-session checks. | Shipped Jul 22 |
+| REQ-304 | **Sticky input fix** – removed the JavaScript textarea height reset and synchronous `scrollHeight` read from every keystroke; restored native `field-sizing: content`. Production build passed and Boss confirmed typing was significantly better. | Shipped Jul 22 |
 | — | **Summary cards v2** — Read shows filename + partial/full, Grep shows filename, Glob shows match count, Bash shows command (80 chars), Edit/Write show filename. Case-insensitive tool name matching. PreToolUse temp file bridges tool input for OpenCode. | Shipped May 26 |
 | — | **Wakeup fix** — OpenCode now receives wakeup prompt via `--prompt` flag (was launching bare). `build_wakeup_message()` moved outside Claude Code branch. | Shipped May 26 |
 

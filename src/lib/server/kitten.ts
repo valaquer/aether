@@ -1,11 +1,13 @@
 import { exec, execFile } from "child_process";
 import { promisify } from "util";
-import { readdirSync, existsSync, appendFileSync } from "fs";
+import { readdirSync, existsSync, appendFileSync, readFileSync } from "fs";
 import os from "os";
 
 const execFileAsync = promisify(execFile);
 
 const KITTEN = "/opt/homebrew/bin/kitten";
+const JANUS_CSV =
+	"/Users/deepak-macmini/honeybloom/library/wiki/project-runbooks/runbook-janus-coding/janus-config.csv";
 
 // Kitty runs on iMac — all kitten commands go through SSH when Aether is on Mini
 const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.153";
@@ -34,6 +36,102 @@ function enqueue(teammate: string, fn: () => Promise<void>): Promise<void> {
 	const next = prev.then(fn, fn);
 	sendQueues.set(teammate, next);
 	return next;
+}
+
+export function getTeammateHarness(teammate: string, csvPath = JANUS_CSV): string | null {
+	try {
+		const lines = readFileSync(csvPath, "utf-8").trim().split("\n");
+		const header = lines[0]?.split(",").map((column) => column.trim().toLowerCase()) ?? [];
+		const harnessIndex = header.indexOf("harness");
+		if (harnessIndex < 0) {
+			console.error(`[sendToKitty] Janus harness header missing for ${teammate}`);
+			return null;
+		}
+		const matches: string[] = [];
+		for (const line of lines.slice(1)) {
+			const columns = line.split(",");
+			if (columns[0]?.trim().toLowerCase() === teammate.trim().toLowerCase()) {
+				matches.push(columns[harnessIndex]?.trim() ?? "");
+			}
+		}
+		if (matches.length !== 1 || !matches[0]) {
+			console.error(
+				`[sendToKitty] malformed Janus teammate row for ${teammate}: expected one non-empty harness, found ${matches.length}`
+			);
+			return null;
+		}
+		return matches[0];
+	} catch (err) {
+		console.error(`[sendToKitty] Janus lookup failed for ${teammate}: ${err instanceof Error ? err.message : String(err)}`);
+	}
+	return null;
+}
+
+export function shouldPersistOpenCodeInbox(teammate: string, csvPath = JANUS_CSV): boolean {
+	return getTeammateHarness(teammate, csvPath)?.toLowerCase() === "opencode";
+}
+
+export function persistOpenCodeInbox(
+	teammate: string,
+	payload: { sender: string; room: string; body: string; timestamp: string },
+	csvPath = JANUS_CSV,
+	inboxDir = "/tmp"
+): boolean {
+	if (!shouldPersistOpenCodeInbox(teammate, csvPath)) return false;
+	try {
+		appendFileSync(
+			`${inboxDir}/opencode-inbox-${teammate}.jsonl`,
+			JSON.stringify(payload) + "\n"
+		);
+		return true;
+	} catch (err) {
+		console.error(
+			`[sendToKitty] OpenCode inbox append failed for ${teammate}: ${err instanceof Error ? err.message : String(err)}`
+		);
+		return false;
+	}
+}
+
+export function buildMiniProcessCleanupCommand(name: string): string {
+	if (!/^[a-z0-9-]+$/i.test(name)) throw new Error(`Invalid teammate name: ${name}`);
+	const expectedCwd = `/Users/deepak-macmini/honeybloom/${name}`;
+	return `expected_cwd='${expectedCwd}'
+cwd_of() { lsof -p "$1" -a -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'; }
+is_live() { kill -0 "$1" 2>/dev/null || return 1; state=$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' '); case "$state" in Z*) return 1 ;; esac; return 0; }
+command_of() { ps -o command= -p "$1" 2>/dev/null || true; }
+birth_of() { ps -o lstart= -p "$1" 2>/dev/null | awk '{$1=$1; print}'; }
+fingerprint_of() { command=$(command_of "$1"); birth=$(birth_of "$1"); [ -n "$command" ] && [ -n "$birth" ] || return 1; printf '%s\n%s' "$command" "$birth" | cksum | awk '{print $1 ":" $2}'; }
+add_target() { pid="$1"; role="$2"; [ "$(cwd_of "$pid")" = "$expected_cwd" ] || return; fingerprint=$(fingerprint_of "$pid") || return; case " $targets " in *" $pid "*) return ;; esac; targets="$targets $pid"; eval fp_$pid=$fingerprint; eval role_$pid=$role; }
+still_target() { pid="$1"; is_live "$pid" || return 1; [ "$(cwd_of "$pid")" = "$expected_cwd" ] || return 1; eval expected_fp=\\$fp_$pid; eval role=\\$role_$pid; [ -n "$expected_fp" ] && [ "$(fingerprint_of "$pid")" = "$expected_fp" ] || return 1; command=$(command_of "$pid"); case "$role" in descendant) case "$command" in *"/codex-code-mode-host"|*"/bin/codex "*) ;; *) return 1 ;; esac ;; native) [ "$(ps -o comm= -p "$pid" 2>/dev/null | sed 's#.*/##' | tr -d ' ')" = codex ] || return 1 ;; launcher) case "$command" in node" /opt/homebrew/bin/codex "*) ;; *) return 1 ;; esac ;; claude) [ "$(ps -o comm= -p "$pid" 2>/dev/null | sed 's#.*/##' | tr -d ' ')" = claude ] || return 1 ;; *) return 1 ;; esac; }
+record_descendants() { for child in $(pgrep -P "$1" 2>/dev/null || true); do child_cmd=$(command_of "$child"); case "$child_cmd" in *"/codex-code-mode-host"|*"/bin/codex "*) ;; *) continue ;; esac; if [ "$(cwd_of "$child")" = "$expected_cwd" ]; then record_descendants "$child"; add_target "$child" descendant; fi; done; }
+targets=""
+for native in $(pgrep -x codex 2>/dev/null || true); do
+  [ "$(cwd_of "$native")" = "$expected_cwd" ] || continue
+  launcher=$(ps -o ppid= -p "$native" 2>/dev/null | tr -d ' ')
+  launcher_cmd=$(ps -o command= -p "$launcher" 2>/dev/null || true)
+  case "$launcher_cmd" in node" /opt/homebrew/bin/codex "*) ;; *) launcher="" ;; esac
+  [ -z "$launcher" ] || [ "$(cwd_of "$launcher")" = "$expected_cwd" ] || launcher=""
+  record_descendants "$native"
+  add_target "$native" native
+  [ -z "$launcher" ] || add_target "$launcher" launcher
+done
+for claude in $(pgrep -x claude 2>/dev/null || true); do
+  [ "$(cwd_of "$claude")" = "$expected_cwd" ] || continue
+  add_target "$claude" claude
+done
+for pid in $targets; do still_target "$pid" && kill -TERM "$pid" 2>/dev/null || true; done
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  survivors=""
+  for pid in $targets; do still_target "$pid" && survivors="$survivors $pid"; done
+  [ -z "$survivors" ] && { [ -n "$targets" ] && echo killed || echo none; exit 0; }
+  sleep 0.2
+done
+for pid in $survivors; do still_target "$pid" && kill -9 "$pid" 2>/dev/null || true; done
+sleep 0.2
+remaining=""
+for pid in $survivors; do still_target "$pid" && remaining="$remaining $pid"; done
+[ -z "$remaining" ] || { echo "surviving teammate processes:$remaining" >&2; exit 1; }
+[ -n "$targets" ] && echo killed || echo none`;
 }
 
 export async function discoverSocket(): Promise<string | null> {
@@ -161,11 +259,8 @@ export function sendToKitty(
 
 				result = "delivered";
 
-				// Write to inbox file for OpenCode teammates (Medusa reads this)
-				try {
-					const inboxLine = JSON.stringify({ sender: payload.sender, room: payload.room, body: payload.body, timestamp: payload.timestamp }) + "\n";
-					appendFileSync(`/tmp/opencode-inbox-${teammate}.jsonl`, inboxLine);
-				} catch {}
+				// Medusa consumes this backlog only for teammates currently on OpenCode.
+				persistOpenCodeInbox(teammate, payload);
 			} finally {
 				// Clean up temp file on iMac
 				exec(`${IMAC_SSH} "rm -f '${tmpFile}'"`, { timeout: 3000 });
@@ -250,18 +345,38 @@ export async function launchTeammate(name: string): Promise<boolean> {
 	}
 }
 
-export async function killMiniProcess(name: string): Promise<boolean> {
-	try {
-		const safeName = name.replace(/[^a-z0-9-]/gi, "");
-		await new Promise<void>((resolve, reject) => {
-			exec(
-				`for pid in $(pgrep -x claude); do if lsof -p $pid 2>/dev/null | grep "honeybloom/${safeName}/" | grep -qv "honeybloom/library"; then kill -9 $pid; fi; done`,
-				{ timeout: 10000 },
-				(err) => { if (err) reject(err); else resolve(); }
-			);
-		});
-		return true;
-	} catch {
-		return false;
+export type MiniCleanupStatus = "killed" | "none";
+
+export async function killMiniProcess(name: string): Promise<MiniCleanupStatus> {
+	const output = await new Promise<string>((resolve, reject) => {
+		exec(
+			buildMiniProcessCleanupCommand(name),
+			{ timeout: 10000 },
+			(err, stdout, stderr) => {
+				if (err) {
+					const detail = stderr.trim() || err.message;
+					console.error(`[killMiniProcess] ${name}: ${detail}`);
+					reject(new Error(detail));
+				} else resolve(stdout.trim());
+			}
+		);
+	});
+	if (output !== "killed" && output !== "none") {
+		throw new Error(`Invalid Mini cleanup status for ${name}: ${output || "<empty>"}`);
 	}
+	return output;
+}
+
+export async function cleanupMiniAndMaybeCloseTab(
+	name: string,
+	deps = {
+		kill: killMiniProcess,
+		isAlive: isTabAlive,
+		close: closeKittyTab,
+	}
+): Promise<{ cleanup: MiniCleanupStatus; tabAlive?: boolean; closed?: boolean }> {
+	const cleanup = await deps.kill(name);
+	const tabAlive = await deps.isAlive(name);
+	if (!tabAlive) return { cleanup, tabAlive };
+	return { cleanup, tabAlive, closed: await deps.close(name) };
 }
