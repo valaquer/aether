@@ -12,7 +12,7 @@ import {
 import { emitEvent } from "$lib/server/events";
 import { sendToKitty, isTabAlive, launchTeammate } from "$lib/server/kitten";
 import { endHuddle, removeFromHuddle } from "$lib/server/huddle-helpers";
-import { startTokenTimer, clearQueueAndRetriage, clearTokenTimer, sendTokenGrantedPrompt, sendRunnerUpPrompt } from "$lib/server/token-helpers";
+import { startTokenTimer, clearQueueAndRetriage, clearTokenTimer, sendTokenGrantedPrompt } from "$lib/server/token-helpers";
 import { v4 } from "uuid";
 
 async function autoWake(name: string): Promise<string> {
@@ -278,7 +278,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (result.startsWith("granted")) {
 			startTokenTimer(roomId);
 			sendTokenGrantedPrompt(roomId, sender.toLowerCase());
-			sendRunnerUpPrompt(roomId, sender.toLowerCase());
 		}
 		return new Response(JSON.stringify({ result }), {
 			headers: { "Content-Type": "application/json" },

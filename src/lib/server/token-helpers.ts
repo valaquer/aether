@@ -26,20 +26,6 @@ export function sendTriagePrompt(roomId: string): void {
 	}
 }
 
-export function sendRunnerUpPrompt(roomId: string, excludeSender: string): void {
-	const members = getHuddleMembers(roomId);
-	const now = new Date().toISOString();
-	for (const m of members) {
-		if (m !== excludeSender && m !== "boss" && m !== "houston") {
-			sendToKitty(m, {
-				sender: "system",
-				room: roomId,
-				body: RUNNER_UP_PROMPT,
-				timestamp: now,
-			}).catch(() => {});
-		}
-	}
-}
 
 export function clearQueueAndRetriage(roomId: string, poster: string): void {
 	clearAllTokens(roomId);

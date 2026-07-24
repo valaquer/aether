@@ -255,7 +255,7 @@ export function requestToken(sender: string, roomId: string): string {
 		return "granted: you have the token";
 	}
 
-	return "wait: someone is answering. You'll be prompted when the floor opens again.";
+	return "wait: Someone is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.";
 }
 
 export function releaseToken(roomId: string, sender: string): string {
