@@ -14,9 +14,8 @@
 
 	function resize() {
 		if (!textareaRef) return;
-		if (textareaRef.scrollHeight > textareaRef.clientHeight) {
-			textareaRef.style.height = textareaRef.scrollHeight + "px";
-		}
+		textareaRef.style.height = "auto";
+		textareaRef.style.height = textareaRef.scrollHeight + "px";
 	}
 
 	function resetHeight() {
