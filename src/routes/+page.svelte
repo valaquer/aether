@@ -92,6 +92,9 @@ import LucidePin from '~icons/lucide/pin';
 	let selectedIndex = $state(-1);
 	let conversations = $state<Record<string, ChatMsg[]>>({});
 	let newMessage = $state("");
+	let hasMoreMessages = $state(true);
+	let messageOffset = $state(0);
+	let loadingMore = $state(false);
 	let eventSource: EventSource | undefined;
 	let messagesContainer: HTMLElement | undefined = $state();
 	let liveMirrorActive = $state(false);
@@ -486,6 +489,28 @@ import LucidePin from '~icons/lucide/pin';
 		}
 	}
 
+	async function loadMoreMessages() {
+		const room = displayedConvId;
+		if (!room || loadingMore || !hasMoreMessages) return;
+		loadingMore = true;
+		const scrollEl = messagesContainer;
+		const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
+		try {
+			const res = await fetch(`/api/messages?room=${room}&limit=25&offset=${messageOffset}`);
+			const msgs = await res.json();
+			if (msgs.length < 25) hasMoreMessages = false;
+			if (msgs.length > 0) {
+				const parsed = msgs.map((m: any) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
+				conversations[room] = [...parsed, ...(conversations[room] ?? [])];
+				conversations = conversations;
+				messageOffset += msgs.length;
+				await tick();
+				if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight;
+			}
+		} catch {}
+		loadingMore = false;
+	}
+
 	function handleSSE(event: MessageEvent) {
 		try {
 			const data = JSON.parse(event.data);
@@ -647,7 +672,7 @@ import LucidePin from '~icons/lucide/pin';
 		if (room === prevRoom) return;
 		prevRoom = room;
 		// Chat panel stays frozen during rapid Ctrl+Up/Down — only sidebar highlight moves.
-		// displayedConvId + savePrefs + fetch all deferred until Boss stops navigating for 1s.
+		// displayedConvId + savePrefs + fetch deferred until Boss stops navigating for 200ms.
 		userScrolledUp = false;
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		roomSwitchTimer = setTimeout(() => {
@@ -657,10 +682,14 @@ import LucidePin from '~icons/lucide/pin';
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
 			loadingRoom = room;
-			fetch(`/api/messages?room=${room}`)
+			hasMoreMessages = true;
+			messageOffset = 0;
+			fetch(`/api/messages?room=${room}&limit=25`)
 				.then((r) => r.json())
 				.then((msgs: any[]) => {
 					if (loadingRoom !== room) return;
+					hasMoreMessages = msgs.length >= 25;
+					messageOffset = msgs.length;
 					const parsed = msgs.map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
 					// If paused and have queued IDs, split: queued go to messageQueues, rest to conversations
 					const roomQueuedIds = queuedMessageIds[room] ?? [];
@@ -692,7 +721,7 @@ import LucidePin from '~icons/lucide/pin';
 					}, 50);
 				})
 				.catch(() => { if (loadingRoom === room) loadingRoom = ""; });
-		}, 1000);
+		}, 200);
 	});
 
 	$effect(() => {
@@ -1093,6 +1122,13 @@ import LucidePin from '~icons/lucide/pin';
 			<!-- Conversation area (scrollable) -->
 			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
 				<div class="py-2" style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px; margin-top: auto;">
+					{#if hasMoreMessages && rewindIndex === null}
+						<div style="grid-column: 1 / -1; text-align: center; padding: 0.5rem;">
+							<button onclick={loadMoreMessages} disabled={loadingMore} style="font-size: 10px; color: #7a5e4a; background: none; border: 1px dashed #333; padding: 4px 12px; cursor: pointer; font-family: var(--font-mono);">
+								{loadingMore ? "Loading..." : "Load earlier messages"}
+							</button>
+						</div>
+					{/if}
 					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg}
 						<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
 							<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">{msg.sender}</p>

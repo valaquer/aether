@@ -304,8 +304,14 @@ export function initHuddleToken(roomId: string): void {
 	db.prepare("INSERT OR IGNORE INTO huddle_tokens (roomId) VALUES (?)").run(roomId);
 }
 
-export function getMessages(conversationId: string): StoredMessage[] {
+export function getMessages(conversationId: string, limit?: number, offset?: number): StoredMessage[] {
 	initDb();
+	if (limit) {
+		const stmt = db.prepare(
+			"SELECT * FROM (SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?) ORDER BY createdAt ASC"
+		);
+		return stmt.all(conversationId, limit, offset ?? 0) as StoredMessage[];
+	}
 	const stmt = db.prepare("SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt ASC");
 	return stmt.all(conversationId) as StoredMessage[];
 }

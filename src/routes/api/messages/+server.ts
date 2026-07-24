@@ -7,13 +7,17 @@ export const GET: RequestHandler = async ({ url }) => {
 		return new Response(JSON.stringify({ error: "Missing room parameter" }), { status: 400 });
 	}
 
-	let messages = getMessages(room);
+	const limitParam = url.searchParams.get("limit");
+	const offsetParam = url.searchParams.get("offset");
+	const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+	const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
-	// Past direct rooms have orphaned messages under originalRoomId
-	if (messages.length === 0) {
+	let messages = getMessages(room, limit, offset);
+
+	if (messages.length === 0 && !limit) {
 		const pastRoom = getRoom(room);
 		if (pastRoom?.type === "past" && pastRoom?.originalRoomId) {
-			messages = getMessages(pastRoom.originalRoomId);
+			messages = getMessages(pastRoom.originalRoomId, limit, offset);
 		}
 	}
 
