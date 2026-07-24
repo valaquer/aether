@@ -332,8 +332,10 @@ import LucidePin from '~icons/lucide/pin';
 				if (!stillActive) archiveFlashRoom = "";
 			}
 			// navItems is $derived and recalculates immediately after sidebarItems assignment
-			const roomToFind = isInitialLoad ? (prefs?.selectedRoom ?? "") : currentRoomId;
-			selectedIndex = findNavIndex(navItems, roomToFind, wasOnHeader ? headerSection : undefined);
+			if (isInitialLoad || !roomSwitchTimer) {
+				const roomToFind = isInitialLoad ? (prefs?.selectedRoom ?? "") : currentRoomId;
+				selectedIndex = findNavIndex(navItems, roomToFind, wasOnHeader ? headerSection : undefined);
+			}
 			sidebarLoaded = true;
 		} catch {
 			sidebarItems = [];
