@@ -4,7 +4,7 @@ import { getAliveTeammates } from "$lib/server/kitten";
 import fs from "fs";
 
 const CSV_PATH =
-	"/Users/deepak-macmini/honeybloom/library/wiki/project-runbooks/runbook-janus-coding/janus-config.csv";
+	"/Users/deepak-macmini/honeybloom/library/scripts/janus-config.csv";
 const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
 
 function parseDisplayName(roomId: string): string {

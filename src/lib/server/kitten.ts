@@ -7,7 +7,7 @@ const execFileAsync = promisify(execFile);
 
 const KITTEN = "/opt/homebrew/bin/kitten";
 const JANUS_CSV =
-	"/Users/deepak-macmini/honeybloom/library/wiki/project-runbooks/runbook-janus-coding/janus-config.csv";
+	"/Users/deepak-macmini/honeybloom/library/scripts/janus-config.csv";
 
 // Kitty runs on iMac — all kitten commands go through SSH when Aether is on Mini
 const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.153";
