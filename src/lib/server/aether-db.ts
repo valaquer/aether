@@ -308,7 +308,7 @@ export function getMessages(conversationId: string, limit?: number, offset?: num
 	initDb();
 	if (limit) {
 		const stmt = db.prepare(
-			"SELECT * FROM (SELECT * FROM messages WHERE conversationId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?) ORDER BY createdAt ASC"
+			"SELECT * FROM (SELECT * FROM messages WHERE conversationId = ? AND COALESCE(type, '') NOT IN ('tool_call', 'response') ORDER BY createdAt DESC LIMIT ? OFFSET ?) ORDER BY createdAt ASC"
 		);
 		return stmt.all(conversationId, limit, offset ?? 0) as StoredMessage[];
 	}
