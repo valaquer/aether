@@ -686,14 +686,17 @@ import LucidePin from '~icons/lucide/pin';
 			loadingRoom = room;
 			hasMoreMessages = true;
 			messageOffset = 0;
-			fetch(`/api/messages?room=${room}&limit=25`)
-				.then((r) => r.json())
-				.then((msgs: any[]) => {
+			Promise.all([
+				fetch(`/api/messages?room=${room}&limit=25`).then(r => r.json()),
+				fetch(`/api/messages?room=${room}`).then(r => r.json()),
+			])
+				.then(([chatMsgs, allMsgs]: [any[], any[]]) => {
 					if (loadingRoom !== room) return;
-					hasMoreMessages = msgs.length >= 25;
-					messageOffset = msgs.length;
-					const parsed = msgs.map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
-					// If paused and have queued IDs, split: queued go to messageQueues, rest to conversations
+					hasMoreMessages = chatMsgs.length >= 25;
+					messageOffset = chatMsgs.length;
+					const activityCards = allMsgs.filter((m: any) => m.type === "tool_call" || m.type === "response");
+					const parsed = [...chatMsgs, ...activityCards].map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
+					parsed.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 					const roomQueuedIds = queuedMessageIds[room] ?? [];
 					if ((room.startsWith("huddle-") && stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
 						const queuedSet = new Set(roomQueuedIds);
