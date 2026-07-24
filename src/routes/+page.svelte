@@ -20,6 +20,7 @@
 	import LucideLayoutGrid from '~icons/lucide/layout-grid';
 	import LucidePower from '~icons/lucide/power';
 	import LucidePrinter from '~icons/lucide/printer';
+	import InputBar from '$lib/components/InputBar.svelte';
 import LucideGauge from '~icons/lucide/gauge';
 import LucidePin from '~icons/lucide/pin';
 
@@ -98,7 +99,7 @@ import LucidePin from '~icons/lucide/pin';
 	let pausedRoom = $state<string | null>(null);
 	let stoppedHuddles = $state<Set<string>>(new Set());
 	let sidebarLoaded = $state(false);
-	let focusMode = $state(typeof localStorage !== 'undefined' && localStorage.getItem('aether-reading-mode') === 'true');
+	let focusMode = $state(false);
 	let activityPanelVisible = $state(true);
 	let rewindIndex = $state<number | null>(null);
 	let pinnedRoomIds = $state<string[]>([]);
@@ -454,21 +455,32 @@ import LucidePin from '~icons/lucide/pin';
 		}, 50);
 	}
 
-	async function sendMessage() {
-		const content = newMessage.trim();
+	async function sendMessage(text?: string) {
+		const content = (text ?? newMessage).trim();
 		if (!content || !selectedConvId) return;
 		newMessage = "";
-		await tick();
 		userScrolledUp = false;
 		if (rewindIndex !== null) { rewindIndex = null; clearRewindPosition(selectedConvId); }
 
+		const optimisticMsg: ChatMsg = {
+			id: `optimistic-${Date.now()}`,
+			sender: "boss",
+			content,
+			createdAt: new Date().toISOString(),
+			toolCall: false,
+			response: false,
+			summary: "",
+		};
+		conversations[selectedConvId] = [...(conversations[selectedConvId] || []), optimisticMsg];
+		await tick();
+		if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
 		try {
-			const res = await fetch("/api/message", {
+			await fetch("/api/message", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ sender: "boss", body: content, room: selectedConvId }),
 			});
-			setTimeout(() => { if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 50);
 		} catch {
 			// ignore send errors
 		}
@@ -502,8 +514,18 @@ import LucidePin from '~icons/lucide/pin';
 					response: data.response === true,
 					summary: data.summary || "",
 				};
-				if (msg.toolCall || msg.response) {
-					// Activity cards bypass pause queue — always visible in activity panel
+				if (msg.sender === "boss" && !msg.toolCall && !msg.response) {
+					const existing = conversations[convId] ?? [];
+					const optimisticIdx = existing.findIndex(m => m.id.startsWith("optimistic-") && m.content === msg.content);
+					if (optimisticIdx >= 0) {
+						existing[optimisticIdx] = msg;
+						conversations[convId] = [...existing];
+						conversations = conversations;
+					} else {
+						conversations[convId] = [...(conversations[convId] ?? []), msg];
+						conversations = conversations;
+					}
+				} else if (msg.toolCall || msg.response) {
 					conversations[convId] = [...(conversations[convId] ?? []), msg];
 					conversations = conversations;
 				} else if (msg.sender !== "boss" && ((convId.startsWith("huddle-") && stoppedHuddles.has(convId)) || convId === pausedRoom || (convId === selectedConvId && loadingRoom))) {
@@ -603,7 +625,7 @@ import LucidePin from '~icons/lucide/pin';
 		}
 	});
 
-	let inputRef: HTMLTextAreaElement | undefined = $state();
+	let inputBarRef: ReturnType<typeof InputBar> | undefined = $state();
 	let pulsePoller: ReturnType<typeof setInterval> | undefined;
 	let sidebarPoller: ReturnType<typeof setInterval> | undefined;
 
@@ -698,12 +720,11 @@ import LucidePin from '~icons/lucide/pin';
 			selectedIndex = Math.max(selectedIndex - 1, 0);
 			const nav = navItems[selectedIndex];
 			if (nav?.type === "bookmark") setPendingScrollMessageId(nav.bm.messageId);
-		} else if (e.key === 'Enter' && !e.shiftKey && document.activeElement !== inputRef) {
+		} else if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			inputRef?.focus();
-		} else if (e.key === 'Escape' && document.activeElement === inputRef) {
-			e.preventDefault();
-			inputRef?.blur();
+			inputBarRef?.focus();
+		} else if (e.key === 'Escape') {
+			(document.activeElement as HTMLElement)?.blur();
 		} else if (e.ctrlKey && e.key === 'ArrowRight') {
 			e.preventDefault();
 			if (rewindIndex !== null) {
@@ -1166,29 +1187,7 @@ import LucidePin from '~icons/lucide/pin';
 				</button>
 				</div>
 			</div>
-			<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
-				<div style="padding-top: calc(0.5rem - 1px); text-align: left; align-self: start;">
-					<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">boss</p>
-				</div>
-				<div style="padding-top: 0; padding-bottom: 1rem;">
-					<form onsubmit={(e) => { e.preventDefault(); sendMessage(); }}>
-						<div style="border: 1px dashed var(--color-bg-step4); border-left: 2px solid #5A3E2E;">
-							<div style="padding: 0.5rem 1rem 0.5rem 1.5rem; background: var(--color-bg-element);">
-								<textarea
-									bind:value={newMessage}
-									bind:this={inputRef}
-									onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-									class="w-full bg-transparent outline-none resize-none"
-									rows="1"
-									placeholder=""
-									style="color: var(--color-text); font-family: {focusMode ? "'OpenDyslexic', var(--font-mono)" : 'var(--font-mono)'}; font-size: {focusMode ? '18px' : '12px'}; font-weight: 300; border: none; field-sizing: content; max-height: 200px; overflow: hidden; line-height: {focusMode ? '2.2' : '1.8'};"
-								></textarea>
-								<div style="height: 29px; position: relative;"><span style="position: absolute; bottom: 4px; right: 4px; font-size: 8px; color: #444; font-family: var(--font-mono);">M2N</span></div>
-							</div>
-						</div>
-					</form>
-				</div>
-			</div>
+			<InputBar bind:this={inputBarRef} bind:value={newMessage} onSend={sendMessage} {focusMode} cacheCode="M2N" />
 			</div>
 			{/if}
 		</div>
