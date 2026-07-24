@@ -255,7 +255,8 @@ export function requestToken(sender: string, roomId: string): string {
 		return "granted: you have the token";
 	}
 
-	return "System: Someone is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.";
+	const cap = holder.charAt(0).toUpperCase() + holder.slice(1);
+	return `System: ${cap} is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.`;
 }
 
 export function releaseToken(roomId: string, sender: string): string {

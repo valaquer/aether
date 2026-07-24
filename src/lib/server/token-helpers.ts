@@ -5,7 +5,10 @@ const TRIAGE_PROMPT = `System: Would you like to respond to Boss's message? If t
 
 const TOKEN_GRANTED_PROMPT = `System: You have the token. Respond in the huddle.`;
 
-const RUNNER_UP_PROMPT = `System: Someone is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.`;
+function runnerUpPrompt(name: string): string {
+	const cap = name.charAt(0).toUpperCase() + name.slice(1);
+	return `System: ${cap} is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.`;
+}
 
 const RETRIAGE_PROMPT = `System: The token is available if you still want to answer. If yes, request the token, else do nothing.`;
 
@@ -72,6 +75,18 @@ export function forceAssignTokenAndNotify(roomId: string, targetName: string): v
 	clearTokenTimer(roomId);
 	forceAssignToken(roomId, targetName);
 	sendTokenGrantedPrompt(roomId, targetName);
+	const members = getHuddleMembers(roomId);
+	const now = new Date().toISOString();
+	for (const m of members) {
+		if (m !== targetName && m !== "boss" && m !== "houston") {
+			sendToKitty(m, {
+				sender: "system",
+				room: roomId,
+				body: runnerUpPrompt(targetName),
+				timestamp: now,
+			}).catch(() => {});
+		}
+	}
 }
 
 export function clearTokenTimer(roomId: string): void {
