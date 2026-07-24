@@ -1,5 +1,9 @@
-import { releaseToken, clearAllTokens, getTokenHolder, forceAssignToken } from "./aether-db";
+import { releaseToken, clearAllTokens, getTokenHolder, forceAssignToken, getHuddleMembers } from "./aether-db";
 import { sendToKitty } from "./kitten";
+
+const TRIAGE_PROMPT = `Would you like to respond to Boss's message? Just a yes or no will suffice at this point. Whether you should answer or not depends on if Boss named you specifically, you have specific domain knowledge on this matter or you feel you must flag a concern. If yes, request the token.`;
+
+const RETRIAGE_PROMPT = `The floor is open if you want to answer. Read Boss's message and the response(s) of your teammate(s). Given what is said already, do you still feel the need to speak up? To address something yet unsaid, perhaps? It's ok if you have nothing.`;
 
 const tokenTimers = new Map<string, NodeJS.Timeout>();
 
@@ -10,7 +14,6 @@ export function advanceTokenAndNotify(roomId: string, releasedBy: string): strin
 	const next = result.replace("released: token advanced to ", "");
 	const now = new Date().toISOString();
 
-	// Only the recipient is notified — observers don't need to know (REQ-147)
 	sendToKitty(next, {
 		sender: "system",
 		room: roomId,
@@ -19,6 +22,41 @@ export function advanceTokenAndNotify(roomId: string, releasedBy: string): strin
 	}).catch(() => {});
 
 	return next;
+}
+
+export function sendTriagePrompt(roomId: string): void {
+	const members = getHuddleMembers(roomId);
+	const now = new Date().toISOString();
+	setTimeout(() => {
+		for (const m of members) {
+			if (m !== "boss" && m !== "houston") {
+				sendToKitty(m, {
+					sender: "system",
+					room: roomId,
+					body: TRIAGE_PROMPT,
+					timestamp: now,
+				}).catch(() => {});
+			}
+		}
+	}, 500);
+}
+
+export function clearQueueAndRetriage(roomId: string, poster: string): void {
+	clearAllTokens(roomId);
+	const members = getHuddleMembers(roomId);
+	const now = new Date().toISOString();
+	setTimeout(() => {
+		for (const m of members) {
+			if (m !== poster && m !== "boss" && m !== "houston") {
+				sendToKitty(m, {
+					sender: "system",
+					room: roomId,
+					body: RETRIAGE_PROMPT,
+					timestamp: now,
+				}).catch(() => {});
+			}
+		}
+	}, 500);
 }
 
 export function clearTokensAndNotify(roomId: string): void {
@@ -31,12 +69,7 @@ export function startTokenTimer(roomId: string): void {
 		tokenTimers.delete(roomId);
 		const holder = getTokenHolder(roomId);
 		if (!holder) return;
-		const next = advanceTokenAndNotify(roomId, holder);
-		if (next) {
-			startTokenTimer(roomId);
-		} else {
-			clearTokensAndNotify(roomId);
-		}
+		clearQueueAndRetriage(roomId, holder);
 	}, 30_000);
 	tokenTimers.set(roomId, timer);
 }

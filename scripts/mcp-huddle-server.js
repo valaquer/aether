@@ -85,6 +85,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 			},
 		},
 		{
+			name: "pass_token",
+			description: "Release the token without posting. Use when you have the token but your point is already covered.",
+			inputSchema: {
+				type: "object",
+				properties: {
+					sender: { type: "string", description: "Your teammate name" },
+					roomId: { type: "string", description: "Huddle room ID" },
+				},
+				required: ["sender", "roomId"],
+			},
+		},
+		{
 			name: "read_room",
 			description:
 				"Read the message history of any room (direct, huddle, or past). Returns content directly.",
@@ -181,6 +193,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 					{
 						type: "text",
 						text: await callAetherToken("request", { sender: args.sender, roomId: args.roomId }),
+					},
+				],
+			};
+		case "pass_token":
+			return {
+				content: [
+					{
+						type: "text",
+						text: await callAetherToken("pass", { sender: args.sender, roomId: args.roomId }),
 					},
 				],
 			};

@@ -16,6 +16,8 @@ import {
 	startTokenTimer,
 	clearTokenTimer,
 	forceAssignTokenAndNotify,
+	sendTriagePrompt,
+	clearQueueAndRetriage,
 } from "$lib/server/token-helpers";
 
 import { v4 } from "uuid";
@@ -220,14 +222,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			} else {
 				clearTokenTimer(resolvedRoom);
 				clearTokensAndNotify(resolvedRoom);
+				sendTriagePrompt(resolvedRoom);
 			}
 		} else {
-			// Auto-release token if sender holds it
+			// Teammate posted -- clear queue, broadcast re-triage after fan-out
 			clearTokenTimer(resolvedRoom);
-			const next = advanceTokenAndNotify(resolvedRoom, sender);
-			if (next) {
-				startTokenTimer(resolvedRoom);
-			}
+			clearQueueAndRetriage(resolvedRoom, sender);
 		}
 	} else {
 		// Deliver to the room owner's Kitty tab, unless the sender owns the room

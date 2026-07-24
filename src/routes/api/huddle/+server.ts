@@ -12,7 +12,7 @@ import {
 import { emitEvent } from "$lib/server/events";
 import { sendToKitty, isTabAlive, launchTeammate } from "$lib/server/kitten";
 import { endHuddle, removeFromHuddle } from "$lib/server/huddle-helpers";
-import { startTokenTimer } from "$lib/server/token-helpers";
+import { startTokenTimer, clearQueueAndRetriage, clearTokenTimer } from "$lib/server/token-helpers";
 import { v4 } from "uuid";
 
 async function autoWake(name: string): Promise<string> {
@@ -279,6 +279,17 @@ export const POST: RequestHandler = async ({ request }) => {
 			startTokenTimer(roomId);
 		}
 		return new Response(JSON.stringify({ result }), {
+			headers: { "Content-Type": "application/json" },
+		});
+	}
+
+	if (action === "pass") {
+		if (!sender || !roomId) {
+			return new Response(JSON.stringify({ error: "Missing sender or roomId" }), { status: 400 });
+		}
+		clearTokenTimer(roomId);
+		clearQueueAndRetriage(roomId, sender.toLowerCase());
+		return new Response(JSON.stringify({ result: "passed: token released" }), {
 			headers: { "Content-Type": "application/json" },
 		});
 	}
