@@ -16,8 +16,9 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	let messages: ReturnType<typeof getMessages>;
 
+	const untilParam = url.searchParams.get("until");
 	if (typeParam === "activity" && sinceParam) {
-		messages = getActivityCards(room, sinceParam);
+		messages = getActivityCards(room, sinceParam, untilParam ?? undefined);
 	} else {
 		messages = getMessages(room, limit, offset);
 	}

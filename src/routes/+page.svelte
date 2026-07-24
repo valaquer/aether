@@ -499,13 +499,19 @@ import LucidePin from '~icons/lucide/pin';
 		const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
 		try {
 			const res = await fetch(`/api/messages?room=${room}&limit=25&offset=${messageOffset}`);
-			const msgs = await res.json();
-			if (msgs.length < 25) hasMoreMessages = false;
-			if (msgs.length > 0) {
-				const parsed = msgs.map((m: any) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
-				conversations[room] = [...parsed, ...(conversations[room] ?? [])];
+			const chatMsgs = await res.json();
+			if (chatMsgs.length < 25) hasMoreMessages = false;
+			if (chatMsgs.length > 0) {
+				const oldest = chatMsgs[0].createdAt;
+				const existing = conversations[room] ?? [];
+				const existingOldest = existing.length > 0 ? existing[0].createdAt : oldest;
+				const activityRes = await fetch(`/api/messages?room=${room}&type=activity&since=${encodeURIComponent(oldest)}&until=${encodeURIComponent(existingOldest)}`);
+				const activityCards = await activityRes.json();
+				const combined = [...chatMsgs, ...activityCards].map((m: any) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
+				combined.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+				conversations[room] = [...combined, ...existing];
 				conversations = conversations;
-				messageOffset += msgs.length;
+				messageOffset += chatMsgs.length;
 				await tick();
 				if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight;
 			}

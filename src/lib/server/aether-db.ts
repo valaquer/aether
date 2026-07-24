@@ -316,8 +316,14 @@ export function getMessages(conversationId: string, limit?: number, offset?: num
 	return stmt.all(conversationId) as StoredMessage[];
 }
 
-export function getActivityCards(conversationId: string, since: string): StoredMessage[] {
+export function getActivityCards(conversationId: string, since: string, until?: string): StoredMessage[] {
 	initDb();
+	if (until) {
+		const stmt = db.prepare(
+			"SELECT * FROM messages WHERE conversationId = ? AND type IN ('tool_call', 'response') AND createdAt >= ? AND createdAt < ? ORDER BY createdAt ASC"
+		);
+		return stmt.all(conversationId, since, until) as StoredMessage[];
+	}
 	const stmt = db.prepare(
 		"SELECT * FROM messages WHERE conversationId = ? AND type IN ('tool_call', 'response') AND createdAt >= ? ORDER BY createdAt ASC"
 	);
