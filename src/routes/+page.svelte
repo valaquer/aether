@@ -686,17 +686,24 @@ import LucidePin from '~icons/lucide/pin';
 			loadingRoom = room;
 			hasMoreMessages = true;
 			messageOffset = 0;
-			Promise.all([
-				fetch(`/api/messages?room=${room}&limit=25`).then(r => r.json()),
-				fetch(`/api/messages?room=${room}`).then(r => r.json()),
-			])
-				.then(([chatMsgs, allMsgs]: [any[], any[]]) => {
+			fetch(`/api/messages?room=${room}&limit=25`)
+				.then(r => r.json())
+				.then((chatMsgs: any[]) => {
 					if (loadingRoom !== room) return;
 					hasMoreMessages = chatMsgs.length >= 25;
 					messageOffset = chatMsgs.length;
-					const activityCards = allMsgs.filter((m: any) => m.type === "tool_call" || m.type === "response");
-					const parsed = [...chatMsgs, ...activityCards].map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
-					parsed.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+					const oldest = chatMsgs.length > 0 ? chatMsgs[0].createdAt : new Date().toISOString();
+					return fetch(`/api/messages?room=${room}&type=activity&since=${encodeURIComponent(oldest)}`)
+						.then(r => r.json())
+						.then((activityCards: any[]) => {
+							if (loadingRoom !== room) return;
+							const parsed = [...chatMsgs, ...activityCards].map((m) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
+							parsed.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+							return parsed;
+						});
+				})
+				.then((parsed: any[] | undefined) => {
+					if (!parsed || loadingRoom !== room) return;
 					const roomQueuedIds = queuedMessageIds[room] ?? [];
 					if ((room.startsWith("huddle-") && stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
 						const queuedSet = new Set(roomQueuedIds);
