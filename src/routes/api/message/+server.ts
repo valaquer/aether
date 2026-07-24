@@ -202,13 +202,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Fan-out for huddle rooms: deliver to all members
 	if (resolvedRoom.startsWith("huddle-")) {
 		const members = getHuddleMembers(resolvedRoom);
-		for (const m of members) {
-			if (m !== sender) {
-				sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {});
-			}
-		}
+		await Promise.all(
+			members
+				.filter((m: string) => m !== sender)
+				.map((m: string) => sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {}))
+		);
 		if (sender === "boss") {
-			// Boss-mention token priority: if first word is a participant's name, assign token to them
 			const firstWord = body
 				.trim()
 				.split(/\s+/)[0]
@@ -224,7 +223,6 @@ export const POST: RequestHandler = async ({ request }) => {
 				sendTriagePrompt(resolvedRoom);
 			}
 		} else {
-			// Teammate posted -- clear queue, broadcast re-triage after fan-out
 			clearTokenTimer(resolvedRoom);
 			clearQueueAndRetriage(resolvedRoom, sender);
 		}

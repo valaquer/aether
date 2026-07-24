@@ -14,18 +14,16 @@ const tokenTimers = new Map<string, NodeJS.Timeout>();
 export function sendTriagePrompt(roomId: string): void {
 	const members = getHuddleMembers(roomId);
 	const now = new Date().toISOString();
-	setTimeout(() => {
-		for (const m of members) {
-			if (m !== "boss" && m !== "houston") {
-				sendToKitty(m, {
-					sender: "system",
-					room: roomId,
-					body: TRIAGE_PROMPT,
-					timestamp: now,
-				}).catch(() => {});
-			}
+	for (const m of members) {
+		if (m !== "boss" && m !== "houston") {
+			sendToKitty(m, {
+				sender: "system",
+				room: roomId,
+				body: TRIAGE_PROMPT,
+				timestamp: now,
+			}).catch(() => {});
 		}
-	}, 500);
+	}
 }
 
 export function sendRunnerUpPrompt(roomId: string, excludeSender: string): void {
@@ -47,18 +45,16 @@ export function clearQueueAndRetriage(roomId: string, poster: string): void {
 	clearAllTokens(roomId);
 	const members = getHuddleMembers(roomId);
 	const now = new Date().toISOString();
-	setTimeout(() => {
-		for (const m of members) {
-			if (m !== poster && m !== "boss" && m !== "houston") {
-				sendToKitty(m, {
-					sender: "system",
-					room: roomId,
-					body: RETRIAGE_PROMPT,
-					timestamp: now,
-				}).catch(() => {});
-			}
+	for (const m of members) {
+		if (m !== poster && m !== "boss" && m !== "houston") {
+			sendToKitty(m, {
+				sender: "system",
+				room: roomId,
+				body: RETRIAGE_PROMPT,
+				timestamp: now,
+			}).catch(() => {});
 		}
-	}, 500);
+	}
 }
 
 export function sendTokenGrantedPrompt(roomId: string, grantedTo: string): void {
