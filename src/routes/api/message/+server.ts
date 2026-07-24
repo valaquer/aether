@@ -12,9 +12,7 @@ import {
 } from "$lib/server/aether-db";
 import {
 	clearTokensAndNotify,
-	startTokenTimer,
 	clearTokenTimer,
-	forceAssignTokenAndNotify,
 	sendTriagePrompt,
 	clearQueueAndRetriage,
 } from "$lib/server/token-helpers";
@@ -199,14 +197,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 	}
 
-	// Fan-out for huddle rooms: deliver to all members
+	// Fan-out for huddle rooms: deliver to members via Kitty
 	if (resolvedRoom.startsWith("huddle-")) {
 		const members = getHuddleMembers(resolvedRoom);
-		await Promise.all(
-			members
-				.filter((m: string) => m !== sender)
-				.map((m: string) => sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {}))
-		);
 		if (sender === "boss") {
 			const firstWord = body
 				.trim()
@@ -215,14 +208,23 @@ export const POST: RequestHandler = async ({ request }) => {
 				.toLowerCase();
 			const mentioned = members.find((m: string) => m.toLowerCase() === firstWord);
 			if (mentioned) {
-				forceAssignTokenAndNotify(resolvedRoom, mentioned);
-				startTokenTimer(resolvedRoom);
+				await sendToKitty(mentioned, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {});
 			} else {
+				await Promise.all(
+					members
+						.filter((m: string) => m !== sender)
+						.map((m: string) => sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {}))
+				);
 				clearTokenTimer(resolvedRoom);
 				clearTokensAndNotify(resolvedRoom);
 				sendTriagePrompt(resolvedRoom);
 			}
 		} else {
+			await Promise.all(
+				members
+					.filter((m: string) => m !== sender)
+					.map((m: string) => sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {}))
+			);
 			clearTokenTimer(resolvedRoom);
 			clearQueueAndRetriage(resolvedRoom, sender);
 		}
