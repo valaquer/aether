@@ -11,7 +11,6 @@ import {
 	getTokenHolder,
 } from "$lib/server/aether-db";
 import {
-	advanceTokenAndNotify,
 	clearTokensAndNotify,
 	startTokenTimer,
 	clearTokenTimer,

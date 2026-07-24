@@ -1,28 +1,15 @@
-import { releaseToken, clearAllTokens, getTokenHolder, forceAssignToken, getHuddleMembers } from "./aether-db";
+import { clearAllTokens, getTokenHolder, forceAssignToken, getHuddleMembers } from "./aether-db";
 import { sendToKitty } from "./kitten";
 
-const TRIAGE_PROMPT = `Would you like to respond to Boss's message? Just a yes or no will suffice at this point. Whether you should answer or not depends on if Boss named you specifically, you have specific domain knowledge on this matter or you feel you must flag a concern. If yes, request the token.`;
+const TRIAGE_PROMPT = `System: Would you like to respond to Boss's message? If this is in your lane or you feel you must speak, request the token. Otherwise, do nothing.`;
 
-const RETRIAGE_PROMPT = `The floor is open if you want to answer. Read Boss's message and the response(s) of your teammate(s). Given what is said already, do you still feel the need to speak up? To address something yet unsaid, perhaps? It's ok if you have nothing.`;
+const TOKEN_GRANTED_PROMPT = `System: You have the token. Respond in the huddle.`;
+
+const RUNNER_UP_PROMPT = `System: Someone is answering. Have a look. Maybe it's what you wanted to say? If you still want to speak up -- to contest it or add something of your own -- the token will be made available shortly.`;
+
+const RETRIAGE_PROMPT = `System: The token is available if you still want to answer. If yes, request the token, else do nothing.`;
 
 const tokenTimers = new Map<string, NodeJS.Timeout>();
-
-export function advanceTokenAndNotify(roomId: string, releasedBy: string): string | null {
-	const result = releaseToken(roomId, releasedBy);
-	if (!result.startsWith("released:")) return null;
-
-	const next = result.replace("released: token advanced to ", "");
-	const now = new Date().toISOString();
-
-	sendToKitty(next, {
-		sender: "system",
-		room: roomId,
-		body: "You have the token. Read before posting — don't repeat what is already said.",
-		timestamp: now,
-	}).catch(() => {});
-
-	return next;
-}
 
 export function sendTriagePrompt(roomId: string): void {
 	const members = getHuddleMembers(roomId);
@@ -39,6 +26,21 @@ export function sendTriagePrompt(roomId: string): void {
 			}
 		}
 	}, 500);
+}
+
+export function sendRunnerUpPrompt(roomId: string, excludeSender: string): void {
+	const members = getHuddleMembers(roomId);
+	const now = new Date().toISOString();
+	for (const m of members) {
+		if (m !== excludeSender && m !== "boss" && m !== "houston") {
+			sendToKitty(m, {
+				sender: "system",
+				room: roomId,
+				body: RUNNER_UP_PROMPT,
+				timestamp: now,
+			}).catch(() => {});
+		}
+	}
 }
 
 export function clearQueueAndRetriage(roomId: string, poster: string): void {
@@ -59,6 +61,16 @@ export function clearQueueAndRetriage(roomId: string, poster: string): void {
 	}, 500);
 }
 
+export function sendTokenGrantedPrompt(roomId: string, grantedTo: string): void {
+	const now = new Date().toISOString();
+	sendToKitty(grantedTo, {
+		sender: "system",
+		room: roomId,
+		body: TOKEN_GRANTED_PROMPT,
+		timestamp: now,
+	}).catch(() => {});
+}
+
 export function clearTokensAndNotify(roomId: string): void {
 	clearAllTokens(roomId);
 }
@@ -77,15 +89,7 @@ export function startTokenTimer(roomId: string): void {
 export function forceAssignTokenAndNotify(roomId: string, targetName: string): void {
 	clearTokenTimer(roomId);
 	forceAssignToken(roomId, targetName);
-	const now = new Date().toISOString();
-
-	// Only the recipient is notified (REQ-147)
-	sendToKitty(targetName, {
-		sender: "system",
-		room: roomId,
-		body: "You have the token. Read before posting — don't repeat what is already said.",
-		timestamp: now,
-	}).catch(() => {});
+	sendTokenGrantedPrompt(roomId, targetName);
 }
 
 export function clearTokenTimer(roomId: string): void {

@@ -1,4 +1,4 @@
-import { clearTokenTimer, advanceTokenAndNotify, startTokenTimer } from "./token-helpers";
+import { clearTokenTimer, clearQueueAndRetriage } from "./token-helpers";
 import {
 	setRoomType,
 	getHuddleMembers,
@@ -83,10 +83,7 @@ export function removeFromHuddle(roomId: string, participants: string[], silent?
 
 	for (const p of participants) {
 		clearTokenTimer(roomId);
-		const next = advanceTokenAndNotify(roomId, p);
-		if (next) {
-			startTokenTimer(roomId);
-		}
+		clearQueueAndRetriage(roomId, p);
 	}
 
 	if (!silent) {

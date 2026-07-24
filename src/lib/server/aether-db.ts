@@ -246,28 +246,16 @@ export function requestToken(sender: string, roomId: string): string {
 		.get(roomId) as { tokenHolder: string | null; tokenQueue: string } | undefined;
 	if (!existing) return "no_huddle";
 
-	const queue: [string, string][] = JSON.parse(existing.tokenQueue);
 	const holder = existing.tokenHolder;
 
 	if (holder === sender) return "already_holding: you have the token";
-	for (const item of queue) {
-		if (item[0] === sender) {
-			const pos = queue.indexOf(item) + 1;
-			return `already_queued: position ${pos} (of ${queue.length})`;
-		}
-	}
 
-	if (holder === null && queue.length === 0) {
+	if (holder === null) {
 		db.prepare("UPDATE huddle_tokens SET tokenHolder = ? WHERE roomId = ?").run(sender, roomId);
 		return "granted: you have the token";
 	}
 
-	queue.push([sender, new Date().toISOString()]);
-	db.prepare("UPDATE huddle_tokens SET tokenQueue = ? WHERE roomId = ?").run(
-		JSON.stringify(queue),
-		roomId
-	);
-	return `queued: position ${queue.length}`;
+	return "wait: someone is answering. You'll be prompted when the floor opens again.";
 }
 
 export function releaseToken(roomId: string, sender: string): string {
