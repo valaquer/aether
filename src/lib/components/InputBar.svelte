@@ -12,10 +12,18 @@
 	} = $props();
 	let textareaRef: HTMLTextAreaElement | undefined = $state();
 
+	let lastLength = 0;
 	function resize() {
 		if (!textareaRef) return;
-		textareaRef.style.height = "auto";
-		textareaRef.style.height = textareaRef.scrollHeight + "px";
+		const len = textareaRef.value.length;
+		if (len < lastLength) {
+			textareaRef.style.height = "auto";
+		}
+		lastLength = len;
+		const target = Math.max(textareaRef.scrollHeight, 24);
+		if (target !== textareaRef.offsetHeight) {
+			textareaRef.style.height = target + "px";
+		}
 	}
 
 	function resetHeight() {
