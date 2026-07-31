@@ -1,6 +1,6 @@
 import { exec, execFile } from "child_process";
 import { promisify } from "util";
-import { readdirSync, existsSync, appendFileSync, readFileSync } from "fs";
+import { readdirSync, existsSync, appendFileSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import os from "os";
 
 const execFileAsync = promisify(execFile);
@@ -9,22 +9,22 @@ const KITTEN = "/opt/homebrew/bin/kitten";
 const JANUS_CSV =
 	"/Users/deepak-macmini/honeybloom/library/scripts/janus-config.csv";
 
-// Kitty runs on iMac — all kitten commands go through SSH when Aether is on Mini
-const IMAC_SSH = "ssh -T -o BatchMode=yes -i /Users/deepak-macmini/.ssh/id_mini -o StrictHostKeyChecking=no -o ConnectTimeout=3 d.patnaik@192.168.0.153";
-const IS_MINI = os.hostname().includes("Mini");
+// Kitty runs locally on the Mini -- all kitten commands are direct
 
-function runKittenCmd(args: string[], timeout = 5000): Promise<{ stdout: string; stderr: string }> {
-	if (IS_MINI) {
-		const escaped = args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
-		const cmd = `${IMAC_SSH} "${KITTEN} ${escaped}"`;
-		return new Promise((resolve, reject) => {
-			exec(cmd, { timeout, encoding: "utf-8" }, (err, stdout, stderr) => {
-				if (err) reject(err);
-				else resolve({ stdout: stdout as string, stderr: stderr as string });
-			});
-		});
+let localSocketCache: { uri: string; ts: number } | null = null;
+async function discoverLocalSocket(): Promise<string | null> {
+	if (localSocketCache && Date.now() - localSocketCache.ts < 30000) return localSocketCache.uri;
+	const tmpFiles = readdirSync("/tmp");
+	const socketFiles = tmpFiles.filter(f => f.startsWith("honeybloom-kitty-") && f.endsWith(".sock"));
+	for (const f of socketFiles) {
+		const socketUri = `unix:/tmp/${f}`;
+		try {
+			await execFileAsync(KITTEN, ["@", "--to", socketUri, "ls"], { timeout: 3000 });
+			localSocketCache = { uri: socketUri, ts: Date.now() };
+			return socketUri;
+		} catch { continue; }
 	}
-	return execFileAsync(KITTEN, args, { timeout });
+	return null;
 }
 
 // Per-teammate send queue: serializes sendToKitty calls so two payloads
@@ -134,79 +134,12 @@ for pid in $survivors; do still_target "$pid" && remaining="$remaining $pid"; do
 [ -n "$targets" ] && echo killed || echo none`;
 }
 
-export async function discoverSocket(): Promise<string | null> {
-	// Return cached socket if less than 30s old (only cache successes — null results retry immediately)
-	const cached = (globalThis as any).__kittySocket as { uri: string; ts: number } | undefined;
-	if (cached && Date.now() - cached.ts < 30000) return cached.uri;
-
-	if (IS_MINI) {
-		// Skip default socket attempt — kitten @ ls without --to fails over SSH with TTY error
-		// Go straight to named socket discovery
-		try {
-			const { stdout: filesOut } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-				exec(`${IMAC_SSH} "ls /tmp/honeybloom-kitty-*.sock 2>/dev/null"`, { timeout: 3000, encoding: "utf-8" }, (err, stdout, stderr) => {
-					if (err) reject(err);
-					else resolve({ stdout: stdout as string, stderr: stderr as string });
-				});
-			});
-			for (const line of filesOut.trim().split("\n")) {
-				if (!line) continue;
-				const socketUri = `unix:${line.trim()}`;
-				try {
-					await runKittenCmd(["@", "--to", socketUri, "ls"], 3000);
-					(globalThis as any).__kittySocket = { uri: socketUri, ts: Date.now() };
-					return socketUri;
-				} catch { continue; }
-			}
-		} catch {}
-		return null;
-	}
-
-	const envSocket = process.env.KITTY_LISTEN_ON;
-
-	if (envSocket) {
-		const sockPath = envSocket.replace("unix:", "");
-		if (existsSync(sockPath)) {
-			try {
-				await execFileAsync(KITTEN, ["@", "--to", envSocket, "ls"], { timeout: 3000 });
-				return envSocket;
-			} catch {
-				// continue to glob
-			}
-		}
-	}
-
-	const tmpFiles = readdirSync("/tmp");
-	const socketFiles = tmpFiles.filter(
-		(f) => f.startsWith("honeybloom-kitty-") && f.endsWith(".sock")
-	);
-	for (const f of socketFiles) {
-		const sockPath = `/tmp/${f}`;
-		const socketUri = `unix:${sockPath}`;
-		try {
-			await execFileAsync(KITTEN, ["@", "--to", socketUri, "ls"], { timeout: 3000 });
-			return socketUri;
-		} catch {
-			continue;
-		}
-	}
-
-	return null;
-}
-
 export function sendToKitty(
 	teammate: string,
 	payload: { sender: string; room: string; body: string; timestamp: string }
 ): Promise<string> {
 	let result = "queued";
 	const work = enqueue(teammate, async () => {
-		const socket = await discoverSocket();
-		if (!socket) {
-			result = "no_socket";
-			console.error(`[sendToKitty] no_socket for to=${teammate}`);
-			return;
-		}
-
 		let replyRoom = payload.room;
 		if (payload.room.startsWith("direct-") && payload.sender !== "boss") {
 			replyRoom = `direct-${payload.sender.toLowerCase()}`;
@@ -227,43 +160,25 @@ export function sendToKitty(
 			const len = text.length;
 			const enterDelay = Math.min(Math.max(1000, len * 0.5), 10000);
 			const t0 = Date.now();
-
-			// Write text to temp file on iMac via SSH (kitten --from-file reads iMac-local paths)
 			const tmpFile = `/tmp/.sendtext-${teammate}-${Date.now()}.tmp`;
-			const writeCmd = `cat > '${tmpFile}'`;
-			await new Promise<void>((resolve, reject) => {
-				const child = exec(`${IMAC_SSH} "${writeCmd}"`, { timeout: 5000 }, (err) => {
-					if (err) reject(err); else resolve();
-				});
-				child.stdin?.write(text);
-				child.stdin?.end();
-			});
 
+			const localSocket = await discoverLocalSocket();
+			if (!localSocket) {
+				result = "no_local_socket";
+				console.error(`[sendToKitty] no_local_socket for to=${teammate}`);
+				return;
+			}
+			writeFileSync(tmpFile, text);
 			try {
-				const sendArgs = socket === "__default__"
-					? ["@", "send-text", "--match", `var:teammate=${teammate}`, "--bracketed-paste", "disable", "--from-file", tmpFile]
-					: ["@", "--to", socket, "send-text", "--match", `var:teammate=${teammate}`, "--bracketed-paste", "disable", "--from-file", tmpFile];
-				await runKittenCmd(sendArgs, 10000);
-
+				await execFileAsync(KITTEN, ["@", "--to", localSocket, "send-text", "--match", `var:teammate=${teammate}`, "--bracketed-paste", "disable", "--from-file", tmpFile], { timeout: 10000 });
 				const sendDuration = Date.now() - t0;
-				console.log(
-					`[sendToKitty] to=${teammate} len=${len} delay=${enterDelay}ms sendDuration=${sendDuration}ms`
-				);
-
+				console.log(`[sendToKitty] to=${teammate} len=${len} delay=${enterDelay}ms sendDuration=${sendDuration}ms`);
 				await new Promise((resolve) => setTimeout(resolve, enterDelay));
-
-				const keyArgs = socket === "__default__"
-					? ["@", "send-key", "--match", `var:teammate=${teammate}`, "enter"]
-					: ["@", "--to", socket, "send-key", "--match", `var:teammate=${teammate}`, "enter"];
-				await runKittenCmd(keyArgs, 3000);
-
+				await execFileAsync(KITTEN, ["@", "--to", localSocket, "send-key", "--match", `var:teammate=${teammate}`, "enter"], { timeout: 3000 });
 				result = "delivered";
-
-				// Medusa consumes this backlog only for teammates currently on OpenCode.
 				persistOpenCodeInbox(teammate, payload);
 			} finally {
-				// Clean up temp file on iMac
-				exec(`${IMAC_SSH} "rm -f '${tmpFile}'"`, { timeout: 3000 });
+				try { unlinkSync(tmpFile); } catch {}
 			}
 		} catch (err) {
 			result = `error: ${err instanceof Error ? err.message : String(err)}`;
@@ -273,12 +188,8 @@ export function sendToKitty(
 	return work.then(() => result);
 }
 
-export async function getAliveTeammates(): Promise<Set<string>> {
-	const socket = await discoverSocket();
-	if (!socket) return new Set();
+function parseAliveFromLs(stdout: string): Set<string> {
 	try {
-		const lsArgs = socket === "__default__" ? ["@", "ls"] : ["@", "--to", socket, "ls"];
-		const { stdout } = await runKittenCmd(lsArgs, 5000);
 		const data = JSON.parse(stdout);
 		const alive = new Set<string>();
 		if (Array.isArray(data)) {
@@ -292,53 +203,47 @@ export async function getAliveTeammates(): Promise<Set<string>> {
 			}
 		}
 		return alive;
-	} catch {
-		return new Set();
+	} catch { return new Set(); }
+}
+
+export async function getAliveTeammates(): Promise<Set<string>> {
+	const alive = new Set<string>();
+
+	const localSocket = await discoverLocalSocket();
+	if (localSocket) {
+		try {
+			const { stdout } = await execFileAsync(KITTEN, ["@", "--to", localSocket, "ls"], { timeout: 3000 });
+			for (const t of parseAliveFromLs(stdout)) alive.add(t);
+		} catch {}
 	}
+
+	return alive;
 }
 
 export async function isTabAlive(teammate: string): Promise<boolean> {
-	const socket = await discoverSocket();
-	if (!socket) return false;
+	const localSocket = await discoverLocalSocket();
+	if (!localSocket) return false;
 	try {
-		const lsArgs = socket === "__default__"
-			? ["@", "ls", "--match", `var:teammate=${teammate}`]
-			: ["@", "--to", socket, "ls", "--match", `var:teammate=${teammate}`];
-		const { stdout } = await runKittenCmd(lsArgs, 3000);
+		const { stdout } = await execFileAsync(KITTEN, ["@", "--to", localSocket, "ls", "--match", `var:teammate=${teammate}`], { timeout: 3000 });
 		const data = JSON.parse(stdout);
 		return Array.isArray(data) && data.length > 0;
-	} catch {
-		return false;
-	}
+	} catch { return false; }
 }
 
 export async function closeKittyTab(teammate: string): Promise<boolean> {
-	const socket = await discoverSocket();
-	if (!socket) return false;
+	const localSocket = await discoverLocalSocket();
+	if (!localSocket) return false;
 	try {
-		const closeArgs = socket === "__default__"
-			? ["@", "close-tab", "--match", `var:teammate=${teammate}`]
-			: ["@", "--to", socket, "close-tab", "--match", `var:teammate=${teammate}`];
-		await runKittenCmd(closeArgs, 3000);
+		await execFileAsync(KITTEN, ["@", "--to", localSocket, "close-tab", "--match", `var:teammate=${teammate}`], { timeout: 3000 });
 		return true;
-	} catch {
-		return false;
-	}
+	} catch { return false; }
 }
 
-const IMAC_LAUNCH_SCRIPT = "/Users/d.patnaik/raycast-scripts/kitty-open-teammate.sh";
-const SSH_KEY = "/Users/deepak-macmini/.ssh/id_mini";
-const IMAC_USER = "d.patnaik";
-const IMAC_HOST = "192.168.0.153";
+const OPEN_TEAM_SCRIPT = "/Users/deepak-macmini/honeybloom/library/scripts/open-team.sh";
 
 export async function launchTeammate(name: string): Promise<boolean> {
 	try {
-		await execFileAsync("ssh", [
-			"-i", SSH_KEY,
-			"-o", "ConnectTimeout=5",
-			`${IMAC_USER}@${IMAC_HOST}`,
-			`${IMAC_LAUNCH_SCRIPT} --solo ${name}`
-		], { timeout: 30000 });
+		await execFileAsync(OPEN_TEAM_SCRIPT, ["--solo", name], { timeout: 30000 });
 		return true;
 	} catch {
 		return false;
