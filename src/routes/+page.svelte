@@ -653,8 +653,6 @@ import LucideGauge from '~icons/lucide/gauge';
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		roomSwitchTimer = setTimeout(() => {
 			displayedConvId = room;
-			conversations[room] = [];
-			conversations = conversations;
 			savePrefs();
 			if (isHuddleRoom(room) && stoppedHuddles.has(room)) {
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
