@@ -100,7 +100,9 @@ import LucideGauge from '~icons/lucide/gauge';
 	let selectedIndex = $state(-1);
 	let conversations = $state<Record<string, ChatMsg[]>>({});
 	let newMessage = $state("");
+	let hasMoreMessages = $state(true);
 	let messageOffset = $state(0);
+	let loadingMore = $state(false);
 	let eventSource: EventSource | undefined;
 	let messagesContainer: HTMLElement | undefined = $state();
 	let liveMirrorActive = $state(false);
@@ -487,6 +489,34 @@ import LucideGauge from '~icons/lucide/gauge';
 		}
 	}
 
+	async function loadMoreMessages() {
+		const room = displayedConvId;
+		if (!room || loadingMore || !hasMoreMessages) return;
+		loadingMore = true;
+		const scrollEl = messagesContainer;
+		const prevScrollHeight = scrollEl?.scrollHeight ?? 0;
+		try {
+			const res = await fetch(`/api/messages?room=${room}&limit=25&offset=${messageOffset}`);
+			const chatMsgs = await res.json();
+			if (chatMsgs.length < 25) hasMoreMessages = false;
+			if (chatMsgs.length > 0) {
+				const oldest = chatMsgs[0].createdAt;
+				const existing = conversations[room] ?? [];
+				const existingOldest = existing.length > 0 ? existing[0].createdAt : oldest;
+				const activityRes = await fetch(`/api/messages?room=${room}&type=activity&since=${encodeURIComponent(oldest)}&until=${encodeURIComponent(existingOldest)}`);
+				const activityCards = await activityRes.json();
+				const combined = [...chatMsgs, ...activityCards].map((m: any) => ({ ...m, toolCall: m.type === "tool_call", response: m.type === "response" }));
+				combined.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+				conversations[room] = [...combined, ...existing];
+				conversations = conversations;
+				messageOffset += chatMsgs.length;
+				await tick();
+				if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight;
+			}
+		} catch {}
+		loadingMore = false;
+	}
+
 	function handleSSE(event: MessageEvent) {
 		try {
 			const data = JSON.parse(event.data);
@@ -658,11 +688,13 @@ import LucideGauge from '~icons/lucide/gauge';
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
 			loadingRoom = room;
+			hasMoreMessages = false;
 			messageOffset = 0;
-			fetch(`/api/messages?room=${room}`)
+			fetch(`/api/messages?room=${room}&limit=25`)
 				.then(r => r.json())
 				.then((chatMsgs: any[]) => {
 					if (loadingRoom !== room) return;
+					hasMoreMessages = chatMsgs.length >= 25;
 					messageOffset = chatMsgs.length;
 					const oldest = chatMsgs.length > 0 ? chatMsgs[0].createdAt : new Date().toISOString();
 					return fetch(`/api/messages?room=${room}&type=activity&since=${encodeURIComponent(oldest)}`)
@@ -1097,6 +1129,13 @@ import LucideGauge from '~icons/lucide/gauge';
 			<!-- Conversation area (scrollable) -->
 			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
 				<div class="py-2" style="display: flex; flex-direction: column; margin-top: auto;">
+					{#if hasMoreMessages && rewindIndex === null}
+						<div style="text-align: center; padding: 0.5rem;">
+							<button onclick={loadMoreMessages} disabled={loadingMore} style="font-size: 10px; color: #7a5e4a; background: none; border: 1px dashed #333; padding: 4px 12px; cursor: pointer; font-family: var(--font-mono);">
+								{loadingMore ? "Loading..." : "Load earlier messages"}
+							</button>
+						</div>
+					{/if}
 					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg (msg.id)}
 						<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
 							<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
