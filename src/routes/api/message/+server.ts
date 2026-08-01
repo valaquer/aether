@@ -19,6 +19,7 @@ import {
 
 import { v4 } from "uuid";
 import fs from "fs";
+
 import { clearTriageTimer, getTriageWatchtowerRoomId } from "$lib/server/houston-triage";
 
 interface StoredMessage {
@@ -31,7 +32,7 @@ interface StoredMessage {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { sender, body, room } = await request.json();
+	let { sender, body, room } = await request.json() as { sender: string; body: string; room: string };
 
 	if (!sender || !body || !room) {
 		return new Response(JSON.stringify({ error: "Missing sender, body, or room" }), {
@@ -163,6 +164,31 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Unknown command — fall through to regular message handling
 	}
 
+	if (resolvedRoom.startsWith("huddle-") && sender !== "boss" && sender !== "system") {
+		const members = getHuddleMembers(resolvedRoom);
+		if (!members.some((m: string) => m.toLowerCase() === sender.toLowerCase())) {
+			let senderHuddle = "";
+			try {
+				const orgRaw = fs.readFileSync("/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md", "utf-8");
+				let inGroups = false;
+				for (const line of orgRaw.split("\n")) {
+					if (line.startsWith("## Groups")) { inGroups = true; continue; }
+					if (inGroups && line.startsWith("## ")) break;
+					if (!inGroups || !line.includes("(host:")) continue;
+					const hostMatch = line.match(/\(host:\s*(\w+)\)/);
+					const membersPart = line.split("(")[0];
+					if (hostMatch && membersPart.toLowerCase().includes(sender.toLowerCase())) {
+						const resolved = resolveActiveRoom(`huddle-${hostMatch[1]}`);
+						if (resolved) senderHuddle = resolved;
+						break;
+					}
+				}
+			} catch { /* fall through */ }
+			const target = senderHuddle || "their own huddle";
+			body = `_This message is arriving from a different huddle. To reply, message the sender in ${target} instead of merely posting it in your own._\n\n${body}`;
+		}
+	}
+
 	const msg: StoredMessage = {
 		id,
 		conversationId: resolvedRoom,
@@ -208,7 +234,11 @@ export const POST: RequestHandler = async ({ request }) => {
 				.toLowerCase();
 			const mentioned = members.find((m: string) => m.toLowerCase() === firstWord);
 			if (mentioned) {
-				await sendToKitty(mentioned, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {});
+				await Promise.all(
+					members
+						.filter((m: string) => m !== sender)
+						.map((m: string) => sendToKitty(m, { sender, room: resolvedRoom, body, timestamp: createdAt }).catch(() => {}))
+				);
 			} else {
 				await Promise.all(
 					members
@@ -228,6 +258,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			clearTokenTimer(resolvedRoom);
 			clearQueueAndRetriage(resolvedRoom, sender);
 		}
+
 	} else {
 		// Deliver to the room owner's Kitty tab, unless the sender owns the room
 		const nameMatch = resolvedRoom.match(/^direct-(.+?)-\d{8}-\d{6}$/);

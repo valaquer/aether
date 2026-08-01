@@ -5,7 +5,7 @@ import fs from "fs";
 
 const CSV_PATH =
 	"/Users/deepak-macmini/honeybloom/library/scripts/janus-config.csv";
-const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
 
 function parseDisplayName(roomId: string): string {
 	const match = roomId.match(/^(?:direct|huddle)-([a-z]+)/);

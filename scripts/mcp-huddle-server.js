@@ -97,6 +97,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 			},
 		},
 		{
+			name: "find_huddle",
+			description:
+				"Find a team's active huddle by host name. Returns the huddle room ID, participants, and start time, or reports that no active huddle exists.",
+			inputSchema: {
+				type: "object",
+				properties: {
+					host: {
+						type: "string",
+						description:
+							"The huddle host's name (e.g. dante, guru, rio). Huddles are always named by host.",
+					},
+				},
+				required: ["host"],
+			},
+		},
+		{
 			name: "read_room",
 			description:
 				"Read the message history of any room (direct, huddle, or past). Returns content directly.",
@@ -205,6 +221,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 					},
 				],
 			};
+		case "find_huddle": {
+			try {
+				const res = await fetch(`${AETHER_URL}/api/rooms`);
+				if (!res.ok) {
+					return { content: [{ type: "text", text: `Error: Aether returned ${res.status}` }] };
+				}
+				const data = await res.json();
+				const host = args.host?.toLowerCase();
+				const match = data.huddles?.find((h) => h.host === host);
+				if (!match) {
+					return {
+						content: [{ type: "text", text: `No active huddle for ${args.host}. The team may not be in a huddle right now.` }],
+					};
+				}
+				return {
+					content: [{
+						type: "text",
+						text: `Found active huddle:\n  Room ID: ${match.id}\n  Host: ${match.host}\n  Team: ${match.hostGroup}\n  Participants: ${match.participants.join(", ")}\n  Started: ${match.startedAt}`,
+					}],
+				};
+			} catch (err) {
+				return { content: [{ type: "text", text: `Error: Aether is not responding at ${AETHER_URL}` }] };
+			}
+		}
 		case "read_room": {
 			if (args.roomId?.startsWith("direct-burt") && process.env.FACADE_SENDER !== "burt") {
 				return { content: [{ type: "text", text: "Access denied — direct-burt rooms are restricted to Burt only." }] };

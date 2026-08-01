@@ -160,7 +160,7 @@ export function clearAllHoustonAlerts(): void {
 	db.prepare("UPDATE houston_alerts SET cleared_at = ? WHERE cleared_at IS NULL").run(new Date().toISOString());
 }
 
-const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
 
 function readEngineeringGroup(): string[] {
 	try {

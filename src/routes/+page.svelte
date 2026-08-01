@@ -22,7 +22,7 @@
 	import LucidePrinter from '~icons/lucide/printer';
 	import InputBar from '$lib/components/InputBar.svelte';
 import LucideGauge from '~icons/lucide/gauge';
-import LucidePin from '~icons/lucide/pin';
+	import LucidePin from '~icons/lucide/pin';
 
 	onMount(() => {
 		document.addEventListener('click', (e) => {
@@ -210,31 +210,21 @@ import LucidePin from '~icons/lucide/pin';
 	let navItems = $derived.by(() => {
 		const items: NavItem[] = [];
 
-		// Pinned for the Day section
-		if (pinnedRoomIds.length > 0) {
-			items.push({ type: "header", section: "Pinned for the Day" });
-			for (const roomId of pinnedRoomIds) {
-				const item = sidebarItems.find(x => x.id === roomId);
-				if (item) {
-					items.push({ type: "pinned", item, pinnedRoomId: roomId });
-				}
-			}
-		}
-
-		items.push({ type: "header", section: "Teammates" });
-		for (const item of sidebarItems.filter(x => x.kind === "teammate")) {
-			items.push({ type: "teammate", item });
-		}
 		items.push({ type: "header", section: "Huddles" });
 		for (const item of sidebarItems.filter(x => x.kind === "huddle").sort((a, b) => (a.hostGroupIdx ?? 999) - (b.hostGroupIdx ?? 999))) {
 			items.push({ type: "huddle", item });
 		}
-		if (bookmarks.length > 0) {
-			items.push({ type: "header", section: "Bookmarks" });
-			for (const bm of bookmarks) {
-				items.push({ type: "bookmark", bm });
-			}
+		items.push({ type: "header", section: "Teammates" });
+		for (const item of sidebarItems.filter(x => x.kind === "teammate")) {
+			items.push({ type: "teammate", item });
 		}
+		// Bookmarks sidebar hidden per Boss's request — data and bookmark buttons preserved
+		// if (bookmarks.length > 0) {
+		// 	items.push({ type: "header", section: "Bookmarks" });
+		// 	for (const bm of bookmarks) {
+		// 		items.push({ type: "bookmark", bm });
+		// 	}
+		// }
 		const query = pastSearchQuery.trim().toLowerCase();
 		const pastItems = sidebarItems.filter(x => {
 			if (x.kind !== "past") return false;
@@ -685,12 +675,14 @@ import LucidePin from '~icons/lucide/pin';
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		roomSwitchTimer = setTimeout(() => {
 			displayedConvId = room;
+			conversations[room] = [];
+			conversations = conversations;
 			savePrefs();
 			if (room.startsWith("huddle-") && stoppedHuddles.has(room)) {
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
 			loadingRoom = room;
-			hasMoreMessages = true;
+			hasMoreMessages = false;
 			messageOffset = 0;
 			fetch(`/api/messages?room=${room}&limit=25`)
 				.then(r => r.json())
@@ -980,15 +972,7 @@ import LucidePin from '~icons/lucide/pin';
 		if (printFlashMsgId === msg.id) return;
 		printFlashMsgId = msg.id;
 		setTimeout(() => { printFlashMsgId = ""; }, 1500);
-
-		const existingBm = getBookmarks().find(bm => bm.messageId === msg.id);
-		if (existingBm) {
-			setEditingBookmarkId(existingBm.id);
-			setEditingBookmarkName(existingBm.name);
-		} else {
-			await toggleBookmark(msg, selectedConvId);
-		}
-		setPendingPrint(msg.id, selectedConvId);
+		await _printMessage(msg, selectedConvId);
 	}
 
 	// Ruler — state + handlers in rulerStore.svelte.ts
@@ -1041,7 +1025,6 @@ import LucidePin from '~icons/lucide/pin';
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
 						<span class="sidebar-actions">
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); unpinFromSidebar(nav.pinnedRoomId); }} title="Unpin"><LucideX width={14} height={14} /></button>
 						</span>
 					</div>
 				{:else if nav.type === "teammate"}
@@ -1056,8 +1039,8 @@ import LucidePin from '~icons/lucide/pin';
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
 						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span>{#if isFirstInGroup && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
-{#if !archivingTeammates.has(fmt.label)}<span class="sidebar-actions">
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); if (pinnedRoomIds.includes(item.id)) { unpinFromSidebar(item.id); } else { pinToSidebar(item.id); } }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
+{#if !archivingTeammates.has(fmt.label)}<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1078,8 +1061,8 @@ import LucidePin from '~icons/lucide/pin';
 						{#if item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
-						<span class="sidebar-actions">
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title="{pinnedRoomIds.includes(item.id) ? 'Unpin' : 'Pin'}"><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : ''}" /></button>
+						<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1119,8 +1102,8 @@ import LucidePin from '~icons/lucide/pin';
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (dateGroupIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative;"
 					>
 						<div>{fmt.label} &nbsp;{#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
-						<span class="sidebar-actions">
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); if (pinnedRoomIds.includes(item.id)) { unpinFromSidebar(item.id); } else { pinToSidebar(item.id); } }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
+						<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
+							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
@@ -1139,34 +1122,36 @@ import LucidePin from '~icons/lucide/pin';
 		<div style="position: relative; overflow: hidden;" class="flex flex-col">
 			<!-- Conversation area (scrollable) -->
 			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
-				<div class="py-2" style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px; margin-top: auto;">
+				<div class="py-2" style="display: flex; flex-direction: column; margin-top: auto;">
 					{#if hasMoreMessages && rewindIndex === null}
-						<div style="grid-column: 1 / -1; text-align: center; padding: 0.5rem;">
+						<div style="text-align: center; padding: 0.5rem;">
 							<button onclick={loadMoreMessages} disabled={loadingMore} style="font-size: 10px; color: #7a5e4a; background: none; border: 1px dashed #333; padding: 4px 12px; cursor: pointer; font-family: var(--font-mono);">
 								{loadingMore ? "Loading..." : "Load earlier messages"}
 							</button>
 						</div>
 					{/if}
-					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg}
-						<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
-							<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">{msg.sender}</p>
-						</div>
-						<div class="msg-row" data-msg-id={msg.id} style="padding-top: {focusMode ? '3rem' : '2rem'}; padding-bottom: {focusMode ? '24px' : '12px'}; position: relative;">
-							<div style="border-left: {msg.sender === 'boss' ? '2px solid #5A3E2E' : '2px solid transparent'}; padding-left: 1.5rem;">
-								{#if msg.toolCall}
-									{@html renderToolCard(msg.content)}
-								{:else}
-									<div class="md-content">
-										{@html renderMd(msg.content)}
-									</div>
-								{/if}
+					{#each rewindIndex !== null ? [chatMessages[rewindIndex]].filter(Boolean) : chatMessages as msg (msg.id)}
+						<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">
+							<div style="padding-top: {focusMode ? (msg.toolCall ? 'calc(3rem + 0.75em)' : '3rem') : (msg.toolCall ? 'calc(2rem - 1px + 0.75em)' : 'calc(2rem - 1px)')}; text-align: left; align-self: start;">
+								<p class="sender-label" style="margin: 0; color: var(--color-text-muted); font-size: {focusMode ? '18px' : '12px'}; line-height: {focusMode ? '2.2' : '1.8'};">{msg.sender}</p>
 							</div>
-							<span class="msg-actions">
-								<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => printMessage(msg)} title="Print from here" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
-								<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
-								<button class="control-btn" onclick={() => { gaugeFlashMsgId = msg.id; setTimeout(() => { gaugeFlashMsgId = ''; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: selectedConvId, startFrom: msg.id }) }).catch(() => {}); }} title="Speed read from here" style="color: {gaugeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideGauge width={14} height={14} /></button>
-								</span>
+							<div class="msg-row" data-msg-id={msg.id} style="padding-top: {focusMode ? '3rem' : '2rem'}; padding-bottom: {focusMode ? '24px' : '12px'}; position: relative;">
+								<div style="border-left: {msg.sender === 'boss' ? '2px solid #5A3E2E' : '2px solid transparent'}; padding-left: 1.5rem;">
+									{#if msg.toolCall}
+										{@html renderToolCard(msg.content)}
+									{:else}
+										<div class="md-content">
+											{@html renderMd(msg.content)}
+										</div>
+									{/if}
+								</div>
+								<span class="msg-actions">
+									<button class="control-btn" onclick={() => copyMessage(msg)} title="Copy message" style="color: {copyFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideFiles width={14} height={14} /></button>
+									<button class="control-btn" onclick={() => printMessage(msg)} title="Print from here" style="color: {printFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucidePrinter width={14} height={14} /></button>
+									<button class="control-btn {bookmarks.some(bm => bm.messageId === msg.id) ? 'bookmarked' : ''}" onclick={() => toggleBookmark(msg, selectedConvId)} title="Bookmark" style="margin-left: -4px; color: {bookmarks.some(bm => bm.messageId === msg.id) ? '#7a5e4a' : '#555'};"><LucideBookmark width={14} height={14} /></button>
+									<button class="control-btn" onclick={() => { gaugeFlashMsgId = msg.id; setTimeout(() => { gaugeFlashMsgId = ''; }, 1500); fetch('/api/speed-reader-start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: selectedConvId, startFrom: msg.id }) }).catch(() => {}); }} title="Speed read from here" style="color: {gaugeFlashMsgId === msg.id ? '#7a5e4a' : '#555'};"><LucideGauge width={14} height={14} /></button>
+									</span>
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -1241,7 +1226,7 @@ import LucidePin from '~icons/lucide/pin';
 				</button>
 				</div>
 			</div>
-			<InputBar bind:this={inputBarRef} bind:value={newMessage} onSend={sendMessage} {focusMode} cacheCode="M2N" />
+			<InputBar bind:this={inputBarRef} bind:value={newMessage} onSend={sendMessage} {focusMode} cacheCode="R2M" />
 			</div>
 			{/if}
 		</div>

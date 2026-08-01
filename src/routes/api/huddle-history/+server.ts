@@ -6,11 +6,24 @@ export const GET: RequestHandler = async ({ url }) => {
 	const host = url.searchParams.get("host");
 	const date = url.searchParams.get("date");
 	const includeTools = url.searchParams.get("include_tools") === "true";
+	const IMPORTANT_TOOLS = ["bash", "write", "edit", "compose_gmail"];
+
+	function isImportantTool(content: string): boolean {
+		try {
+			const parsed = JSON.parse(content);
+			const name = (parsed.toolName || "").toLowerCase();
+			return IMPORTANT_TOOLS.some((t) => name.includes(t));
+		} catch {
+			return false;
+		}
+	}
 
 	if (roomId) {
-		const messages = getMessages(roomId).filter(
-			(m) => includeTools || (m.type !== "tool_call" && m.type !== "response")
-		);
+		const messages = getMessages(roomId).filter((m) => {
+			if (m.type === "tool_call") return includeTools || isImportantTool(m.content);
+			if (m.type === "response") return includeTools;
+			return true;
+		});
 		if (messages.length === 0) {
 			return new Response(JSON.stringify({ error: "No messages found for this room" }), {
 				status: 404,
@@ -50,9 +63,11 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	const results = matchingRooms.map((room) => {
-		const messages = getMessages(room.id).filter(
-			(m) => includeTools || (m.type !== "tool_call" && m.type !== "response")
-		);
+		const messages = getMessages(room.id).filter((m) => {
+			if (m.type === "tool_call") return includeTools || isImportantTool(m.content);
+			if (m.type === "response") return includeTools;
+			return true;
+		});
 		return {
 			roomId: room.id,
 			host: room.name,

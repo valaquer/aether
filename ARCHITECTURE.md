@@ -242,6 +242,8 @@ Active huddle rooms are managed by Facade-native huddle actions in `src/routes/a
 
 Messages sent to `huddle-{host}` rooms fan out to all huddle members. The `/api/message` endpoint detects huddle rooms (room ID starts with `huddle-`), reads the SQLite participants list, and delivers via `sendToKitty` to every member except the sender. Token notifications are fanned out to all members' Kitty tabs only — not saved or displayed in Facade (REQ-64, REQ-77). Client-side filter also hides historical token messages from DB.
 
+**Cross-huddle routing guidance:** Before saving, if the sender is not a huddle participant (and not Boss or system), a notice is prepended to the message body with the sender's team huddle room ID (resolved via ORG.md Groups → team host → `resolveActiveRoom`). Fallback text if no active huddle found. The modified body flows through save, SSE emit, and Kitty fan-out as one message — no separate system message, no cooldown.
+
 **Room resolution (REQ-69, REQ-78):** Huddle rooms are session-scoped (`huddle-{host}-{timestamp}`). Short-form IDs like `huddle-claire` resolve to the active room via `resolveActiveRoom()` using `originalRoomId`. Resolution runs BEFORE `roomExists()` check (REQ-78) — prevents past/ghost rooms from intercepting short-form IDs. All huddle room saveRoom calls set `originalRoomId: "huddle-{host}"`. Unresolvable huddle rooms return 404 — never create phantom direct rooms.
 
 **Dedup guard (REQ-115):** The `start` action checks `resolveActiveRoom('huddle-' + host)` before creating a new room. If an active huddle exists for the host, returns the existing room ID with `{ existing: true }` instead of creating a duplicate. Prevents MCP retries and model double-calls from creating parallel huddles.

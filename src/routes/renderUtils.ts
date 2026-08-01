@@ -17,7 +17,9 @@ export function renderMd(content: string): string {
 		}
 		processed.push(lines[i]);
 	}
-	return marked.parse(processed.join('\n')) as string;
+	let html = marked.parse(processed.join('\n')) as string;
+	html = html.replace(/!!(.*?)!!/g, '<span style="color: #e06c75; font-weight: 500;">$1</span>');
+	return html;
 }
 
 function tryParseJson(str: string): any {

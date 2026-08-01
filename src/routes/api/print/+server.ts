@@ -63,7 +63,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// Generate PDF and print
 	try {
-		execSync(`${PANDOC} "${mdPath}" -o "${pdfPath}" --pdf-engine=xelatex -V mainfont="JetBrains Mono" -V fontsize=8pt -V geometry:"top=0.5in, bottom=0.5in, left=1in, right=1in"`, {
+		execSync(`${PANDOC} "${mdPath}" -f markdown-raw_tex-tex_math_single_backslash-tex_math_dollars -o "${pdfPath}" --pdf-engine=xelatex -V mainfont="JetBrains Mono" -V fontsize=8pt -V geometry:"top=0.5in, bottom=0.5in, left=1in, right=1in"`, {
 			env: { ...process.env, PATH: `/Library/TeX/texbin:${process.env.PATH}` },
 			timeout: 30000,
 		});

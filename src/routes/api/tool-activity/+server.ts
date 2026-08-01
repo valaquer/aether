@@ -5,7 +5,7 @@ import { sendToKitty } from "$lib/server/kitten";
 import { v4 } from "uuid";
 import fs from "fs";
 
-const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/ORG.md";
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
 
 function getGroupMembers(sender: string): string[] {
 	const name = sender.toLowerCase();
