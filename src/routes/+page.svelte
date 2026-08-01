@@ -56,7 +56,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		});
 	});
 
-	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string };
+	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string; project?: string };
 	type ChatMsg = { id: string; sender: string; content: string; createdAt: string; toolCall?: boolean; response?: boolean; summary?: string };
 	// Bookmark type imported from bookmarkStore.svelte.ts
 	type NavItem =
@@ -67,6 +67,8 @@ import LucideGauge from '~icons/lucide/gauge';
 		| { type: "bookmark"; bm: Bookmark }
 		| { type: "past"; item: SidebarItem };
 
+	function isHuddleRoom(id: string | undefined | null): boolean { return !!id && (id.startsWith("huddle-") || id.startsWith("work-")); }
+
 	function formatPastRoom(name: string): { label: string; date: string } {
 		const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 		// direct-{name}-{YYYYMMDD}-{HHMMSS}
@@ -74,6 +76,12 @@ import LucideGauge from '~icons/lucide/gauge';
 		if (directMatch) {
 			const [, n, y, mo, d, h, mi] = directMatch;
 			return { label: n, date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
+		}
+		// work-{host}-{YYYYMMDD}-{HHMMSS}
+		const workMatch = name.match(/^work-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
+		if (workMatch) {
+			const [, host, y, mo, d, h, mi] = workMatch;
+			return { label: host + "'s work huddle", date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
 		// huddle-{host}-{YYYYMMDD}-{HHMMSS}
 		const huddleMatch = name.match(/^huddle-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
@@ -300,7 +308,7 @@ import LucideGauge from '~icons/lucide/gauge';
 			pinnedRoomIds = pinnedData.rooms || [];
 			const prefs = isInitialLoad ? await responses[2].json() : null;
 			const teammates = (data.teammates ?? []).map((t: { id: string; name: string; model: string; online: boolean; group?: string; groupIdx?: number }) => ({ id: t.id, name: t.name, model: t.model || "", kind: "teammate" as const, online: t.online, group: t.group || "", groupIdx: t.groupIdx ?? 0 }));
-			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[] }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999 }));
+			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[]; project?: string }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999, project: h.project }));
 			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string; startedAt?: string }) => ({ id: p.id, name: p.name, kind: "past" as const, startedAt: p.startedAt }));
 
 			const items = [...teammates, ...currentHuddles, ...pastItems];
@@ -358,7 +366,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		userScrolledUp = false;
 		if (convId) { delete queuedMessageIds[convId]; queuedMessageIds = queuedMessageIds; }
 		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
-		if (convId?.startsWith("huddle-")) { stoppedHuddles.delete(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
+		if (isHuddleRoom(convId)) { stoppedHuddles.delete(convId!); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); }
 	}
 
 	async function sendPauseMessage() {
@@ -438,7 +446,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		queuedMessageIds = queuedMessageIds;
 		localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
 		if (!isCurrentRoomPaused) {
-			if (convId.startsWith("huddle-")) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
+			if (isHuddleRoom(convId)) { stoppedHuddles.add(convId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); }
 			else { pausedRoom = convId; localStorage.setItem('aether-paused-room', convId); }
 		}
 		setTimeout(() => {
@@ -551,7 +559,7 @@ import LucideGauge from '~icons/lucide/gauge';
 				} else if (msg.toolCall || msg.response) {
 					conversations[convId] = [...(conversations[convId] ?? []), msg];
 					conversations = conversations;
-				} else if (msg.sender !== "boss" && ((convId.startsWith("huddle-") && stoppedHuddles.has(convId)) || convId === pausedRoom || (convId === selectedConvId && loadingRoom))) {
+				} else if (msg.sender !== "boss" && ((isHuddleRoom(convId) && stoppedHuddles.has(convId)) || convId === pausedRoom || (convId === selectedConvId && loadingRoom))) {
 					messageQueues[convId] = [...(messageQueues[convId] ?? []), msg];
 					messageQueues = messageQueues;
 					queuedMessageIds[convId] = [...(queuedMessageIds[convId] ?? []), msg.id];
@@ -678,7 +686,7 @@ import LucideGauge from '~icons/lucide/gauge';
 			conversations[room] = [];
 			conversations = conversations;
 			savePrefs();
-			if (room.startsWith("huddle-") && stoppedHuddles.has(room)) {
+			if (isHuddleRoom(room) && stoppedHuddles.has(room)) {
 				// Huddle pause is explicit — only huddles in stoppedHuddles are paused
 			}
 			loadingRoom = room;
@@ -703,7 +711,7 @@ import LucideGauge from '~icons/lucide/gauge';
 				.then((parsed: any[] | undefined) => {
 					if (!parsed || loadingRoom !== room) return;
 					const roomQueuedIds = queuedMessageIds[room] ?? [];
-					if ((room.startsWith("huddle-") && stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
+					if ((isHuddleRoom(room) && stoppedHuddles.has(room)) && roomQueuedIds.length > 0) {
 						const queuedSet = new Set(roomQueuedIds);
 						const queued = parsed.filter((m: ChatMsg) => queuedSet.has(m.id));
 						const rest = parsed.filter((m: ChatMsg) => !queuedSet.has(m.id));
@@ -812,7 +820,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		try { const p = JSON.parse(m.content); return UI_HIDDEN_TOOLS.some(t => p.toolName?.includes(t)); } catch { return false; }
 	}
 	let activityCards = $derived(currentMessages.filter((m) => (m.toolCall || m.response) && !isHiddenToolCall(m)));
-	let isCurrentRoomPaused = $derived((selectedConvId?.startsWith("huddle-") && stoppedHuddles.has(selectedConvId)) || pausedRoom === selectedConvId);
+	let isCurrentRoomPaused = $derived((isHuddleRoom(selectedConvId) && stoppedHuddles.has(selectedConvId!)) || pausedRoom === selectedConvId);
 
 	$effect(() => {
 		chatMessages;
@@ -1020,7 +1028,7 @@ import LucideGauge from '~icons/lucide/gauge';
 						onclick={() => selectedIndex = i}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (pinnedLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative;"
 					>
-						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{#if !isPinnedHuddle && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if item.project}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.project}</span> <span style="font-size: 9px; color: #666;">work huddle</span>{:else if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{#if !isPinnedHuddle && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if isPinnedHuddle && item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
@@ -1057,7 +1065,7 @@ import LucideGauge from '~icons/lucide/gauge';
 						onclick={() => selectedIndex = i}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashRoom === item.id ? '#555' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)')}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (huddleLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative; {archiveFlashRoom === item.id ? 'opacity: 0.3;' : ''}"
 					>
-						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
+						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if item.project}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.project}</span> <span style="font-size: 9px; color: #666;">work huddle</span>{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
 						{/if}
@@ -1180,7 +1188,7 @@ import LucideGauge from '~icons/lucide/gauge';
 						<span class="queue-digits"><span class="queue-digit" style="opacity: {hundreds ? 1 : 0.25};">{hundreds}</span><span class="queue-digit" style="opacity: {tens ? 1 : 0.25};">{tens}</span><span class="queue-digit" style="opacity: {ones ? 1 : 0.25};">{ones}</span></span>
 					{/if}
 				</button>
-				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) { flushQueue(); if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.delete(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } } else { if (selectedConvId?.startsWith("huddle-")) { stoppedHuddles.add(selectedConvId); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } }} title={isCurrentRoomPaused ? "Resume live" : "Pause"}>
+				<button class="control-btn" onclick={() => { if (isCurrentRoomPaused) { flushQueue(); if (isHuddleRoom(selectedConvId)) { stoppedHuddles.delete(selectedConvId!); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = null; localStorage.removeItem('aether-paused-room'); } } else { if (isHuddleRoom(selectedConvId)) { stoppedHuddles.add(selectedConvId!); stoppedHuddles = new Set(stoppedHuddles); localStorage.setItem('aether-stopped-huddles', JSON.stringify([...stoppedHuddles])); } else { pausedRoom = selectedConvId; localStorage.setItem('aether-paused-room', selectedConvId); } } }} title={isCurrentRoomPaused ? "Resume live" : "Pause"}>
 					{#if isCurrentRoomPaused}
 						<LucidePlay width={14} height={14} style="color: #7a5e4a;" />
 					{:else}

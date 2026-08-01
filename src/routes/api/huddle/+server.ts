@@ -8,12 +8,49 @@ import {
 	requestToken,
 	initHuddleToken,
 	resolveActiveRoom,
+	getAllRooms,
 } from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
 import { sendToKitty, isTabAlive, launchTeammate } from "$lib/server/kitten";
 import { endHuddle, removeFromHuddle } from "$lib/server/huddle-helpers";
 import { startTokenTimer, clearQueueAndRetriage, clearTokenTimer, sendTokenGrantedPrompt } from "$lib/server/token-helpers";
 import { v4 } from "uuid";
+import fs from "fs";
+
+const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
+
+function loadProjectNames(): string[] {
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		const names = new Set<string>();
+		let inProjects = false;
+		for (const line of raw.split("\n")) {
+			if (line.startsWith("## Projects") || line.startsWith("### ")) inProjects = true;
+			if (inProjects && line.startsWith("## ") && !line.startsWith("## Projects") && !line.startsWith("### ")) break;
+			const m = line.match(/^- \*\*(.+?)\*\*/);
+			if (inProjects && m) names.add(m[1]);
+		}
+		if (names.size === 0) console.warn("[Aether] loadProjectNames: zero projects found -- possible ORG.md format drift");
+		return [...names];
+	} catch {
+		console.warn("[Aether] loadProjectNames: failed to read ORG.md");
+		return [];
+	}
+}
+
+function loadTeamLeaders(): string[] {
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		const leaders: string[] = [];
+		for (const line of raw.split("\n")) {
+			const m = line.match(/\(host:\s*(\w+)\)/);
+			if (m) leaders.push(m[1].toLowerCase());
+		}
+		return leaders;
+	} catch {
+		return [];
+	}
+}
 
 async function autoWake(name: string): Promise<string> {
 	try {
@@ -43,12 +80,78 @@ export const POST: RequestHandler = async ({ request }) => {
 	const participants = (data.participants as string[])?.map((p: string) => p.toLowerCase());
 	const sender = data.sender?.toLowerCase();
 	const roomId = data.roomId;
+	const project = data.project?.trim();
 
 	if (action === "start") {
 		if (!host || !participants || !Array.isArray(participants)) {
 			return new Response(JSON.stringify({ error: "Missing host or participants" }), {
 				status: 400,
 			});
+		}
+
+		if (project) {
+			const projectNames = loadProjectNames();
+			const canonicalProject = projectNames.find(p => p.toLowerCase() === project.toLowerCase());
+			if (!canonicalProject) {
+				return new Response(JSON.stringify({ error: `Invalid project name: "${project}". Must match a project in ORG.md.` }), { status: 400 });
+			}
+
+			const existingForProject = resolveActiveRoom(`work-${project.toLowerCase()}`);
+			if (existingForProject) {
+				const currentMembers = getHuddleMembers(existingForProject).filter((m: string) => m !== "boss");
+				const allMembers = [host, ...participants.filter((p: string) => p !== host)].filter((m: string) => m !== "boss");
+				const missing = allMembers.filter((m) => !currentMembers.includes(m));
+				if (missing.length > 0) {
+					const updated = [...new Set([...currentMembers, ...missing])];
+					const existingRoom = getRoom(existingForProject);
+					if (existingRoom) {
+						saveRoom({ id: existingForProject, type: "huddle", name: existingRoom.name, participants: updated, originalRoomId: existingRoom.originalRoomId ?? `work-${project.toLowerCase()}`, lastActivity: new Date().toISOString(), startedAt: existingRoom.startedAt });
+						emitEvent({ type: "huddle_update" });
+						await Promise.all(missing.map((name) => ensureTabOpen(name)));
+						const notification = `${missing.join(", ")} added to work huddle ${existingForProject}.`;
+						const msg = { id: v4(), conversationId: existingForProject, sender: "system", content: notification, createdAt: new Date().toISOString(), type: "message" };
+						saveMessage(msg);
+						emitEvent({ type: "message", conversationId: existingForProject, sender: "system", content: notification, timestamp: msg.createdAt });
+						for (const name of updated) { sendToKitty(name, { sender: "system", room: existingForProject, body: notification, timestamp: msg.createdAt }).catch(() => {}); }
+					}
+				}
+				return new Response(JSON.stringify({ roomId: existingForProject, existing: true, project: canonicalProject }), { headers: { "Content-Type": "application/json" } });
+			}
+
+			const activeWorkHuddles = getAllRooms().filter(r => r.type === "huddle" && r.id.startsWith("work-"));
+			const hostHasWork = activeWorkHuddles.some(r => r.id.startsWith(`work-${host}-`));
+			if (hostHasWork) {
+				return new Response(JSON.stringify({ error: `${host} already hosts an active work huddle. End it first.` }), { status: 400 });
+			}
+
+			const leaders = loadTeamLeaders();
+			if (!leaders.includes(host)) {
+				const hostHasTeam = resolveActiveRoom(`huddle-${host}`);
+				if (hostHasTeam) {
+					return new Response(JSON.stringify({ error: `${host} is not a team leader and already has an active huddle.` }), { status: 400 });
+				}
+			}
+
+			const ts = formatTimestamp(new Date());
+			const rid = `work-${host}-${ts}`;
+			const allMembers = [host, ...participants.filter((p: string) => p !== host)].filter((m: string) => m !== "boss");
+
+			saveRoom({ id: rid, type: "huddle", name: canonicalProject, participants: allMembers, originalRoomId: `work-${project.toLowerCase()}`, lastActivity: new Date().toISOString(), startedAt: new Date().toISOString() });
+			initHuddleToken(rid);
+
+			const results: string[] = [];
+			try {
+				emitEvent({ type: "huddle_update" });
+				const wakePromises = allMembers.map(async (name) => { const wakeResult = await ensureTabOpen(name); return `${name}: ${wakeResult}`; });
+				results.push(...(await Promise.all(wakePromises)));
+				const invitation = `Work huddle "${canonicalProject}" started by ${host}. Participants: ${allMembers.join(", ")}. Room: ${rid}`;
+				const msg = { id: v4(), conversationId: rid, sender: "system", content: invitation, createdAt: new Date().toISOString(), type: "message" };
+				saveMessage(msg);
+				emitEvent({ type: "message", conversationId: rid, sender: "system", content: invitation, timestamp: msg.createdAt });
+				for (const name of allMembers) { if (name === host) continue; sendToKitty(name, { sender: "system", room: rid, body: invitation, timestamp: msg.createdAt }).catch(() => {}); }
+			} catch (e) { results.push(`post-commit error: ${e}`); }
+
+			return new Response(JSON.stringify({ roomId: rid, results, project: canonicalProject }), { headers: { "Content-Type": "application/json" } });
 		}
 
 		const ts = formatTimestamp(new Date());
@@ -70,7 +173,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						type: "huddle",
 						name: existingRoom.name,
 						participants: updated,
-						originalRoomId: `huddle-${existingRoom.name}`,
+						originalRoomId: existingRoom.originalRoomId ?? `huddle-${existingRoom.name}`,
 						lastActivity: new Date().toISOString(),
 						startedAt: existingRoom.startedAt,
 					});
@@ -201,7 +304,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			type: "huddle",
 			name: room.name,
 			participants: updated,
-			originalRoomId: `huddle-${room.name}`,
+			originalRoomId: room.originalRoomId ?? `huddle-${room.name}`,
 			lastActivity: new Date().toISOString(),
 			startedAt: room.startedAt,
 		});

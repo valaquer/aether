@@ -15,7 +15,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 		{
 			name: "start_huddle",
 			description:
-				"Start a huddle. Creates a huddle room, auto-wakes participants, posts invitation.",
+				"Start a huddle. Creates a team huddle (default) or a work huddle (when project is provided). Work huddles are project-scoped cross-team rooms.",
 			inputSchema: {
 				type: "object",
 				properties: {
@@ -24,6 +24,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 						type: "array",
 						items: { type: "string" },
 						description: "Participant names",
+					},
+					project: {
+						type: "string",
+						description: "Project name from ORG.md (e.g. Manhattan, Prague). When provided, creates a work huddle instead of a team huddle.",
 					},
 				},
 				required: ["host", "participants"],
@@ -99,17 +103,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 		{
 			name: "find_huddle",
 			description:
-				"Find a team's active huddle by host name. Returns the huddle room ID, participants, and start time, or reports that no active huddle exists.",
+				"Find an active huddle. By default finds a team huddle by host name. When project is provided, finds the work huddle for that project instead.",
 			inputSchema: {
 				type: "object",
 				properties: {
 					host: {
 						type: "string",
 						description:
-							"The huddle host's name (e.g. dante, guru, rio). Huddles are always named by host.",
+							"The huddle host's name (e.g. dante, guru, rio). Used for team huddles.",
+					},
+					project: {
+						type: "string",
+						description:
+							"Project name (e.g. Manhattan, Prague). When provided, finds the work huddle for this project instead of a team huddle.",
 					},
 				},
-				required: ["host"],
 			},
 		},
 		{
@@ -169,15 +177,18 @@ async function callAetherToken(action, body) {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
 	const args = request.params.arguments ?? {};
 	switch (request.params.name) {
-		case "start_huddle":
+		case "start_huddle": {
+			const body = { host: args.host, participants: args.participants };
+			if (args.project) body.project = args.project;
 			return {
 				content: [
 					{
 						type: "text",
-						text: await callAether("start", { host: args.host, participants: args.participants }),
+						text: await callAether("start", body),
 					},
 				],
 			};
+		}
 		case "end_huddle":
 			return {
 				content: [{ type: "text", text: await callAether("end", { roomId: args.roomId }) }],
@@ -228,11 +239,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 					return { content: [{ type: "text", text: `Error: Aether returned ${res.status}` }] };
 				}
 				const data = await res.json();
+				const allHuddles = data.huddles ?? [];
+
+				if (args.project) {
+					const proj = args.project.toLowerCase();
+					const match = allHuddles.find((h) => h.id.startsWith("work-") && h.name?.toLowerCase() === proj);
+					if (!match) {
+						return { content: [{ type: "text", text: `No active work huddle for project "${args.project}".` }] };
+					}
+					return {
+						content: [{
+							type: "text",
+							text: `Found active work huddle:\n  Room ID: ${match.id}\n  Project: ${match.name}\n  Host: ${match.host}\n  Participants: ${match.participants.join(", ")}\n  Started: ${match.startedAt}`,
+						}],
+					};
+				}
+
 				const host = args.host?.toLowerCase();
-				const match = data.huddles?.find((h) => h.host === host);
+				if (!host) {
+					return { content: [{ type: "text", text: "Provide either host (for team huddle) or project (for work huddle)." }] };
+				}
+				const match = allHuddles.find((h) => h.host === host && !h.id.startsWith("work-"));
 				if (!match) {
 					return {
-						content: [{ type: "text", text: `No active huddle for ${args.host}. The team may not be in a huddle right now.` }],
+						content: [{ type: "text", text: `No active team huddle for ${args.host}. The team may not be in a huddle right now.` }],
 					};
 				}
 				return {

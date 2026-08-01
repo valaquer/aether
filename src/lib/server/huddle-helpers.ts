@@ -74,7 +74,7 @@ export function removeFromHuddle(roomId: string, participants: string[], silent?
 		type: "huddle",
 		name: room.name,
 		participants: updated,
-		originalRoomId: `huddle-${room.name}`,
+		originalRoomId: room.originalRoomId ?? `huddle-${room.name}`,
 		lastActivity: new Date().toISOString(),
 		startedAt: room.startedAt,
 	});

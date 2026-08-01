@@ -8,9 +8,9 @@ const CSV_PATH =
 const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
 
 function parseDisplayName(roomId: string): string {
-	const match = roomId.match(/^(?:direct|huddle)-([a-z]+)/);
+	const match = roomId.match(/^(?:direct|huddle|work)-([a-z]+)/);
 	if (match) return match[1];
-	const legacy = roomId.replace(/^direct-/, "").replace(/^huddle-/, "");
+	const legacy = roomId.replace(/^direct-/, "").replace(/^huddle-/, "").replace(/^work-/, "");
 	return legacy.replace(/-legacy$/, "");
 }
 
@@ -104,15 +104,20 @@ export const GET: RequestHandler = async () => {
 	});
 
 	const huddleRooms = getAllRooms().filter((r) => r.type === "huddle");
-	const huddles = huddleRooms.map((r) => ({
-		id: r.id,
-		name: parseDisplayName(r.id),
-		host: r.name,
-		hostGroup: memberToGroup[r.name]?.label || "",
-		hostGroupIdx: memberToGroup[r.name]?.idx ?? sidebarGroups.length,
-		participants: getHuddleMembers(r.id),
-		startedAt: r.startedAt,
-	}));
+	const huddles = huddleRooms.map((r) => {
+		const isWork = r.id.startsWith("work-");
+		const host = parseDisplayName(r.id);
+		return {
+			id: r.id,
+			name: isWork ? r.name : host,
+			host: isWork ? host : r.name,
+			hostGroup: memberToGroup[isWork ? host : r.name]?.label || "",
+			hostGroupIdx: memberToGroup[isWork ? host : r.name]?.idx ?? sidebarGroups.length,
+			participants: getHuddleMembers(r.id),
+			startedAt: r.startedAt,
+			project: isWork ? r.name : undefined,
+		};
+	});
 
 	const pastRooms = getRoomsByType("past").map((r) => ({
 		id: r.id,
