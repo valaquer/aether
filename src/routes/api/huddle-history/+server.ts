@@ -52,7 +52,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const pastRooms = getRoomsByType("past");
 	const matchingRooms = pastRooms.filter((room) => {
-		const isHuddle = room.id.startsWith("huddle-");
+		const isHuddle = room.id.startsWith("huddle-") || room.id.startsWith("work-");
 		const matchesHost = room.name === host;
 		const matchesDate = date ? room.id.includes(date) : true;
 		return isHuddle && matchesHost && matchesDate;

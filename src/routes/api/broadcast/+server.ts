@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Direct rooms: no-op
-	if (!room.startsWith("huddle-")) {
+	if (!room.startsWith("huddle-") && !room.startsWith("work-")) {
 		return new Response(JSON.stringify({ delivered: 0 }), {
 			headers: { "Content-Type": "application/json" },
 		});

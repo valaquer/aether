@@ -22,6 +22,8 @@ import fs from "fs";
 
 import { clearTriageTimer, getTriageWatchtowerRoomId } from "$lib/server/houston-triage";
 
+function isHuddleRoom(id: string): boolean { return id.startsWith("huddle-") || id.startsWith("work-"); }
+
 interface StoredMessage {
 	id: string;
 	conversationId: string;
@@ -50,7 +52,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (activeRoom) {
 		resolvedRoom = activeRoom;
 	} else if (!roomExists(resolvedRoom)) {
-		if (resolvedRoom.startsWith("huddle-")) {
+		if (isHuddleRoom(resolvedRoom)) {
 			return new Response(
 				JSON.stringify({
 					error: `Huddle room not found: ${resolvedRoom}. Use the full room ID from the system notification.`,
@@ -83,7 +85,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Huddle token: must hold token to post
-	if (resolvedRoom.startsWith("huddle-") && sender !== "boss" && sender !== "system" && sender !== "jeh") {
+	if (isHuddleRoom(resolvedRoom) && sender !== "boss" && sender !== "system" && sender !== "jeh") {
 		const holder = getTokenHolder(resolvedRoom);
 		if (holder !== sender) {
 			return new Response(
@@ -164,7 +166,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Unknown command — fall through to regular message handling
 	}
 
-	if (resolvedRoom.startsWith("huddle-") && sender !== "boss" && sender !== "system") {
+	if (isHuddleRoom(resolvedRoom) && sender !== "boss" && sender !== "system") {
 		const members = getHuddleMembers(resolvedRoom);
 		if (!members.some((m: string) => m.toLowerCase() === sender.toLowerCase())) {
 			let senderHuddle = "";
@@ -224,7 +226,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	// Fan-out for huddle rooms: deliver to members via Kitty
-	if (resolvedRoom.startsWith("huddle-")) {
+	if (isHuddleRoom(resolvedRoom)) {
 		const members = getHuddleMembers(resolvedRoom);
 		if (sender === "boss") {
 			const firstWord = body
