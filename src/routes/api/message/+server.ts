@@ -9,6 +9,7 @@ import {
 	roomExists,
 	getHuddleMembers,
 	getTokenHolder,
+	getAllRooms,
 } from "$lib/server/aether-db";
 import {
 	clearTokensAndNotify,
@@ -170,22 +171,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		const members = getHuddleMembers(resolvedRoom);
 		if (!members.some((m: string) => m.toLowerCase() === sender.toLowerCase())) {
 			let senderHuddle = "";
-			try {
-				const orgRaw = fs.readFileSync("/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md", "utf-8");
-				let inGroups = false;
-				for (const line of orgRaw.split("\n")) {
-					if (line.startsWith("## Groups")) { inGroups = true; continue; }
-					if (inGroups && line.startsWith("## ")) break;
-					if (!inGroups || !line.includes("(host:")) continue;
-					const hostMatch = line.match(/\(host:\s*(\w+)\)/);
-					const membersPart = line.split("(")[0];
-					if (hostMatch && membersPart.toLowerCase().includes(sender.toLowerCase())) {
-						const resolved = resolveActiveRoom(`huddle-${hostMatch[1]}`);
-						if (resolved) senderHuddle = resolved;
+			const activeHuddles = getAllRooms().filter(r => r.type === "huddle");
+			for (const h of activeHuddles) {
+				const members = getHuddleMembers(h.id);
+				if (members.some((m: string) => m.toLowerCase() === sender.toLowerCase())) {
+					if (h.id.startsWith("work-")) {
+						senderHuddle = h.id;
 						break;
 					}
+					if (!senderHuddle) senderHuddle = h.id;
 				}
-			} catch { /* fall through */ }
+			}
 			const target = senderHuddle || "their own huddle";
 			body = `_This message is arriving from a different huddle. To reply, message the sender in ${target} instead of merely posting it in your own._\n\n${body}`;
 		}
