@@ -1056,7 +1056,6 @@ import LucideGauge from '~icons/lucide/gauge';
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>{/if}
 					</div>
 				{:else if nav.type === "huddle"}
@@ -1079,7 +1078,6 @@ import LucideGauge from '~icons/lucide/gauge';
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>
 						{/if}
 					</div>
@@ -1121,7 +1119,6 @@ import LucideGauge from '~icons/lucide/gauge';
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
-							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>
 					</div>
 				{/if}
