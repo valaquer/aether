@@ -97,6 +97,7 @@ import LucideGauge from '~icons/lucide/gauge';
 	}
 
 	let sidebarItems = $state<SidebarItem[]>([]);
+	let onlineNames = $derived(new Set(sidebarItems.filter(x => x.kind === "teammate" && x.online).map(x => x.name)));
 	let selectedIndex = $state(-1);
 	let conversations = $state<Record<string, ChatMsg[]>>({});
 	let newMessage = $state("");
@@ -1030,7 +1031,7 @@ import LucideGauge from '~icons/lucide/gauge';
 					>
 						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if item.project}<span style="font-size: 8px; color: #5a8f6e; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.project}</span> work huddle{:else if isPinnedHuddle && item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{#if !isPinnedHuddle && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if isPinnedHuddle && item.participants?.length}
-							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
+							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}<span style="{onlineNames.has(p) ? '' : 'color: #555; opacity: 0.35;'}">{p}</span>{/each}</div>
 						{/if}
 						<span class="sidebar-actions">
 						</span>
@@ -1067,7 +1068,7 @@ import LucideGauge from '~icons/lucide/gauge';
 					>
 						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if item.project}<span style="font-size: 8px; color: #5a8f6e; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.project}</span> work huddle{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
-							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}{p}{/each}</div>
+							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}<span style="{onlineNames.has(p) ? '' : 'color: #555; opacity: 0.35;'}">{p}</span>{/each}</div>
 						{/if}
 						<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
@@ -1234,7 +1235,7 @@ import LucideGauge from '~icons/lucide/gauge';
 				</button>
 				</div>
 			</div>
-			<InputBar bind:this={inputBarRef} bind:value={newMessage} onSend={sendMessage} {focusMode} cacheCode="R2M" />
+			<InputBar bind:this={inputBarRef} bind:value={newMessage} onSend={sendMessage} {focusMode} cacheCode="T4K" />
 			</div>
 			{/if}
 		</div>

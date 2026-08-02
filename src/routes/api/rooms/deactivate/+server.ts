@@ -3,7 +3,6 @@ import { resolveActiveRoom, setRoomType } from "$lib/server/aether-db";
 import { deactivateTeammate } from "$lib/server/active-teammates";
 import { emitEvent } from "$lib/server/events";
 import { cleanupMiniAndMaybeCloseTab } from "$lib/server/kitten";
-import { removeFromAllHuddles } from "$lib/server/huddle-helpers";
 import { appendFileSync } from "fs";
 
 const DEACTIVATE_LOG = "/tmp/aether-deactivate.log";
@@ -21,9 +20,6 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const teammate = name.toLowerCase();
 	log(`DEACTIVATE called for ${teammate}`);
-
-	// Remove from all active huddles (REQ-248)
-	removeFromAllHuddles(teammate);
 
 	// Move direct room to Past Rooms
 	const baseRoomId = `direct-${teammate}`;
