@@ -1,379 +1,345 @@
-# Facade — Architecture
+# Aether -- Architecture
 
-## Origin
+Forked from HuggingFace Chat UI (github.com/huggingface/chat-ui). Upstream features (auth, model switching, text generation, admin panel, sharing, voice input) remain in the codebase as dead code -- do not touch, do not extend, do not fix. If a build error traces to upstream code, stub it out.
 
-Forked from HuggingFace Chat UI (upstream: github.com/huggingface/chat-ui).
-The upstream codebase contains many features irrelevant to Facade. Rather than
-strip them, we leave them in place and document them here. Dead code that does
-not execute does not cause bugs.
+Aether is the org's real-time communication backbone -- messaging, huddles, live mirror, speed reader, terminal chatter. SvelteKit app on the Mac Mini at port 51730, SQLite DB at `library/aether/aether.db`.
 
-## How to use this document
+---
 
-Each feature below is classified as either **Keep** or **Drop**.
-
-- **Keep:** We use or may use this. Read and understand it before modifying.
-- **Drop:** Dead code from the upstream. Do not touch. If a build error traces
-  to it, replace with a stub — do not fix or extend.
-
-## Feature Registry
-
-### 1. Authentication (DROP)
-
-HuggingFace OAuth login/logout. Routes at `/login`, `/login/callback`,
-`/logout`, `.well-known/oauth-cimd`. Server modules: `auth.ts`,
-`adminToken.ts`, `apiToken.ts`. Types: `User.ts`, `Session.ts`.
-Utility: `utils/auth.ts` (`requireAuthUser`).
-
-Gated behind CLIENT_ID env var — does not run on localhost unless configured.
-Safe to leave in place.
-
-### 2. Model support (DROP)
-
-Model list, model switching in chat, model detail pages with thumbnails,
-model subscriptions. Routes at `/models`, `/models/{name}`. API at
-`/api/models`, `/api/v2/models/*`. Server modules: `models.ts`,
-`endpoints/` (OpenAI, image generation). Not needed — Facade is
-a comms layer, not an AI chat app.
-
-### 3. Conversation management (KEEP)
-
-Core chat infra: create, load, rename, delete conversations; message history.
-Routes at `/conversation/[id]`. API at `/api/conversation/*`,
-`/api/v2/conversations/*`. Server module: `conversation.ts`.
-
-Sub-features that could be split:
-- **3A (KEEP):** Basic CRUD, message loading
-- **3B (DROP):** Message tree with branching / alternate replies
-- **3C (DROP):** Public share links (`/r/[id]`)
-
-### 4. User settings (DROP)
-
-Settings page at `/settings` with per-model config (custom prompts, provider
-override, multimodal/tools toggle), theme switching (dark/light), haptics.
-Store: `stores/settings.ts`. API: `/api/v2/user/settings`.
-Not needed — no models to configure in Facade.
-
-### 5. File attachments (KEEP)
-
-Upload images, text files, PDFs into conversations. Paste from clipboard.
-Fetch from URL. File preview/download. Components: `FileDropzone.svelte`,
-`UploadedFile.svelte`, `UrlFetchModal.svelte`, `ImageLightbox.svelte`.
-Server: `files/uploadFile.ts`, `files/downloadFile.ts`.
-Needed for screenshot sharing.
-
-### 6. Voice input (DROP)
-
-Microphone recording, transcription API, audio waveform. Components:
-`VoiceRecorder.svelte`, `AudioWaveform.svelte`. API: `/api/transcribe`.
-AI-chat feature, not needed for teammate comms.
-
-### 7. MCP (Model Context Protocol) (DROP)
-
-MCP client with server management UI (add/remove/toggle servers), tool
-calling in conversations. Components: `MCPServerManager.svelte`,
-`AddServerForm.svelte`, `ServerCard.svelte`. API: `/api/mcp/*`.
-Store: `stores/mcpServers.ts`. Server: `mcp/`. Not needed — Facade
-does not route to LLMs.
-
-### 8. Text generation (DROP)
-
-LLM streaming pipeline, stop/retry, reasoning blocks, arch-router for model
-fallback, text generation engine with file refs and MCP tool orchestration.
-Server modules: `textGeneration/`, `router/`, `generateFromDefaultEndpoint.ts`.
-Not needed — Facade is human-to-human communication.
-
-### 9. Admin panel (DROP)
-
-Conversation data export (`/admin/export`), usage stats (`/admin/stats/compute`).
-Protected by admin API secret. Not needed for localhost tool.
-
-### 10. Metrics & logging (PARTIAL)
-
-Prometheus metrics endpoint at `/metrics` — **DROP** (production monitoring).
-Pino structured logging (`logger.ts`) — **KEEP** (useful for debugging message
-routing failures, DB errors, SSE drops).
-
-### 11. Sharing (DROP)
-
-Public conversation share links (`/r/[id]`), HuggingFace Hub integration.
-Component: `ShareConversationModal.svelte`. Not needed — Facade is
-private teammate chat.
-
-### 12. Mobile support (KEEP)
-
-Responsive layout, mobile nav sidebar, virtual keyboard handling.
-Component: `MobileNav.svelte`. Low weight, zero maintenance cost.
-
-### 13. Background generation (DROP)
-
-Polls for in-progress AI generations. Component:
-`BackgroundGenerationPoller.svelte`. Store: `backgroundGenerations.ts`.
-AI-chat feature — not relevant for Facade.
-
-### 14. Health check (KEEP)
-
-`/healthcheck` endpoint returning OK. One file, zero complexity.
-Useful to verify server is alive during development.
-
-### 15. Privacy page (DROP)
-
-Static privacy policy at `/privacy`. HF-specific, irrelevant for localhost tool.
-
-### 16. Debug endpoints (DROP)
-
-OpenAI debug (`__debug/openai`), config dump (`/api/v2/debug/config`),
-refresh (`/api/v2/debug/refresh`). Dev aids — not needed.
-
-### 17. Docker/Deployment (DROP)
-
-Dockerfile, docker-compose.yml, Helm chart, entrypoint.sh. Not needed —
-Facade runs locally via `npm run dev`.
-
-### 18. Static assets (DROP branding, KEEP icons)
-
-HF branding (favicons, manifest, OG thumbnails) — **DROP.** Reusable icon
-SVGs (burger, chevron, loading, sun/moon, etc. in `components/icons/`) —
-**KEEP.** Small, no deps, useful for Facade UI.
-
-### 19. Markdown rendering (KEEP)
-
-Renders message content as formatted text — bold, italic, code blocks with
-syntax highlighting, LaTeX math, links, tables. Components:
-`MarkdownRenderer.svelte`, `CodeBlock.svelte`, `MarkdownBlock.svelte`.
-Utilities: `marked.ts`, `parseBlocks.ts`, `parseIncompleteMarkdown.ts`.
-Essential for readable teammate communication (code snippets, formatted messages).
-
-
-## Built Architecture (Facade-specific)
-
-Everything in this section is custom code added on top of the upstream HF fork.
-These files are ours — modify freely.
-
-### Stack
-
-- SvelteKit 2 + Svelte 5 (runes: $state, $effect, $props, $derived)
-- TailwindCSS v3 for styling
-- JetBrains Mono (Google Fonts CDN) — 300 weight, 12px, 1.8 line-height
-- `marked` library for markdown rendering (GFM enabled)
-- No database yet — state lives in `/tmp/facade-active-teammates.json`
-- No auth required — localhost only
-
-### UI Layer (Chica's spec, pixel-perfect)
-
-| File | Purpose |
-|---|---|
-| `src/app.css` | All theme variables, markdown styles (Obsidianite gradients), diff rendering, code blocks |
-| `src/routes/+layout.svelte` | Root layout — imports app.css, JetBrains Mono font, renders children |
-| `src/routes/+page.svelte` | Main chat UI: sidebar, message grid (72px+minmax(0,1fr), 570px), input bar, markdown rendering |
-
-Design constants:
-- Font: JetBrains Mono, weight 300, 12px, line-height 1.8
-- Text color: `#CDCCC2`, muted: `#808080`
-- Content width: 570px max, grid columns: 72px label + minmax(0, 1fr) content
-- Background: `#0b0d10` (premium black), panels: `#0e1114`, elements: `#1e1e1e`, dividers: `#282a30`
-- Sidebar: 280px, `#0e1114` bg, dashed `#282a30` border, three-section layout. Section headers in Inter. Teammate names in system-ui. Chat sender labels in Inter. (Teammates, Huddles, Past Rooms) with gradient headers and 60px padding-bottom per section. Huddle rooms read from `/tmp/kitty-huddles.json` (MCP huddle server state) with host name + participant list. Teammate and huddle names are lowercase.
-- Input bar: 1px dashed `#282a30` border with 2px `#5A3E2E` (copper) left border, `#1e1e1e` bg. Boss messages also get 2px `#5A3E2E` left border.
-- Markdown gradients: blue-to-purple (`#5c9cf5` → `#9d7cd8`) on headings/bold/blockquotes
-- Keyboard shortcuts: Ctrl+Up/Down (sidebar nav), Enter (focus input), Escape (blur input)
-
-### Server Layer (Kitty lifecycle mirror + event-driven rooms)
-
-| File | Purpose |
-|---|---|
-| `src/lib/server/kitten.ts` | Discovers the Kitty socket; queues message delivery; routes the fallback inbox only to Janus teammates currently using OpenCode; inventories, launches, and closes teammate tabs; and performs birth-fingerprinted, exact-CWD Claude/Codex process cleanup before allowing tab closure. Key exports: `sendToKitty()`, `discoverSocket()`, `getAliveTeammates()`, `isTabAlive()`, `launchTeammate()`, `cleanupMiniAndMaybeCloseTab()`, plus the focused harness/inbox and cleanup-command helpers used by tests. |
-| `src/lib/server/active-teammates.ts` | JSON file state at `/tmp/facade-active-teammates.json`. Export: `activateTeammate()`, `deactivateTeammate()`, `getActiveTeammates()` |
-| `src/lib/server/events.ts` | Wraps Node.js EventEmitter. Export: `emitEvent()`, `onEvent()`. Used for SSE push. |
-| `src/routes/api/rooms/activate/+server.ts` | POST endpoint called by `kitty-open-teammate.sh` on tab open. Calls `activateTeammate()`, saves room to SQLite, emits SSE `room_update`. |
-| `src/routes/api/rooms/deactivate/+server.ts` | POST endpoint called by `/end-session` on tab close or hover × dismiss. Room and huddle state changes commit and emit `room_update` before delayed process cleanup. `cleanupMiniAndMaybeCloseTab()` terminates only the target teammate's birth-fingerprinted Claude/Codex process tree; if cleanup fails, the failure is logged and the Kitty tab stays open. The tab closes only after cleanup succeeds. |
-
-`sendToKitty()` reads the canonical Janus CSV before writing an OpenCode inbox record. Only recipients whose current harness is `OpenCode` receive `/tmp/opencode-inbox-{teammate}.jsonl`; Codex and Claude recipients use Kitty delivery without creating a stale Medusa backlog.
-
-### Control Strip (REQ-139, REQ-142)
-
-Invisible toolbar above the input bar, inside the absolute-positioned input area. Premium black (`--color-bg`) background, no border, 6px vertical padding. Uses the same 72px+1fr grid as the input bar for alignment. Contains: live mirror LED (16px gap to next icon), pause/play button, stop button. Icons are inline Lucide SVGs at 14px, `#555` default, `#7a5e4a` copper when active. VCR 3-state model: `scrollState` ('live' | 'paused') + `messageQueue` array. When paused, SSE messages for the current room queue invisibly. Play pops one and scrolls to it (`scrollIntoView block: center`). Stop flushes queue to live. Queue counter badge (copper 10px) next to play icon. Auto-flush on send and room switch.
-
-### Floating Input Bar (REQ-68, REQ-131)
-
-The input bar uses `position: absolute; bottom: 0` inside the `position: relative` main content container. It floats over the chat area — when the textarea grows, it expands upward over chat messages without affecting the chat scroll container's height or scroll position. The chat scroll container has `padding-bottom: 130px` to clear the default single-line input bar height (~117px + breathing room). This value is coupled to the input bar layout — if the input bar's default height changes, the padding must be updated.
-
-Textarea auto-sizing uses CSS `field-sizing: content` (REQ-131, restored by REQ-304) – native browser layout, no JavaScript. Do not add a per-input `height = 0` / `scrollHeight` measurement loop: it forces synchronous layout on every keystroke and becomes visibly laggy in rooms with large activity DOMs. `max-height: 200px` caps growth; `rows="1"` sets minimum height.
-
-### API Layer
-
-| Route | Method | Purpose |
-|---|---|---|
-| `/api/rooms` | GET | Returns active teammates + huddles from JSON state |
-| `/api/events` | GET | SSE stream — pushes events when room state changes |
-| `/api/message` | POST | Accepts `{ sender, room, body }`. Stores message, forwards to target's Kitty tab via `kitten send-text`. Self-delivery guard: skips Kitty forward if sender is the room owner (no self-echo). |
-| `/api/preferences` | GET, POST | Read/write `facade-preferences.json`. Stores `selectedRoom` (persisted sidebar selection across sessions). |
-
-### Message Flow (REQ-013)
+## 1. Directory Structure
 
 ```
-Teammate A → post_to_facade(body="hello", room="direct-b")
-  → MCP server → POST /api/message { sender: "a", room: "direct-b", body: "hello" }
-  → Server stores message, emits SSE event for Facade UI
-  → Target check: room owner "b" !== sender "a" → deliver to Kitty
-  → sendToKitty("b", "[a] hello")
-  → Teammate B's Kitty tab receives the message as typed input
+library/aether-app/                    # App codebase (git: valaquer/aether)
+├── src/
+│   ├── app.css                        # Theme: foundation.css import + Tailwind
+│   ├── app.html                       # HTML shell
+│   ├── hooks.server.ts                # SvelteKit server hooks
+│   ├── lib/
+│   │   ├── server/
+│   │   │   ├── aether-db.ts           # SQLite layer -- all DB reads/writes
+│   │   │   ├── active-teammates.ts    # /tmp JSON state for online roster
+│   │   │   ├── events.ts             # EventEmitter wrapper for SSE push
+│   │   │   ├── huddle-helpers.ts      # endHuddle, removeFromHuddle, removeFromAllHuddles
+│   │   │   ├── token-helpers.ts       # Huddle token triage, timeout, fan-out
+│   │   │   ├── kitten.ts             # Kitty socket discovery, sendToKitty, process cleanup
+│   │   │   ├── houston-state.ts       # Houston alert state (in-memory)
+│   │   │   ├── houston-triage.ts      # 10-min triage timeout timer
+│   │   │   ├── config.ts             # App configuration
+│   │   │   ├── conversation.ts        # Upstream conversation CRUD (partially used)
+│   │   │   ├── database.ts           # Upstream MongoDB adapter (unused -- we use SQLite)
+│   │   │   ├── harness-reader.ts      # Codex rollout terminal chatter capture
+│   │   │   ├── codex-rollout.ts       # Codex rollout cursor management
+│   │   │   └── ...                    # Upstream dead code (endpoints/, router/, textGeneration/, mcp/, auth, models)
+│   │   ├── components/                # Svelte UI components (mostly upstream, some kept)
+│   │   │   ├── chat/                  # ChatMessage, MarkdownRenderer, ChatInput, etc.
+│   │   │   ├── icons/                 # Lucide SVG icons
+│   │   │   └── ...
+│   │   ├── stores/                    # Svelte stores (upstream, partially used)
+│   │   ├── types/                     # TypeScript type definitions
+│   │   ├── utils/                     # Client-side utilities (markdown, URL handling)
+│   │   ├── constants/                 # Shared constants
+│   │   ├── actions/                   # Svelte actions (snapScrollToBottom)
+│   │   ├── jobs/                      # Background jobs
+│   │   ├── migrations/               # DB migration scripts
+│   │   └── workers/                   # Web workers
+│   └── routes/
+│       ├── +page.svelte               # Main UI (1537 lines) -- sidebar, chat panel, activity panel, speed reader
+│       ├── +layout.svelte             # Root layout
+│       ├── renderUtils.ts             # Markdown + tool card rendering
+│       ├── clipboardUtils.ts          # Copy/print room helpers
+│       ├── bookmarkStore.svelte.ts    # Bookmark state management
+│       ├── rulerStore.svelte.ts       # Measurement ruler state
+│       └── api/
+│           ├── message/               # POST: send message, fan-out, token enforcement
+│           ├── rooms/                 # GET: sidebar data (teammates, huddles, past rooms)
+│           │   ├── activate/          # POST: teammate comes online
+│           │   └── deactivate/        # POST: teammate goes offline + huddle cleanup
+│           ├── huddle/                # POST: start/end/add/remove/request/pass
+│           ├── archive-huddle/        # POST: archive huddle to past rooms
+│           ├── huddle-history/        # GET: past huddle data
+│           ├── events/                # GET: SSE stream
+│           ├── messages/              # GET: message history for a room
+│           ├── tool-activity/         # POST: live mirror tool card ingestion
+│           ├── houston-alert/         # GET/POST/DELETE: cop car LED state
+│           ├── houston-escalate/      # POST: triage timeout escalation
+│           ├── houston-heartbeat/     # POST: poller heartbeat
+│           ├── speed-reader-*/        # Speed reader chunk/session management (6 endpoints)
+│           ├── preferences/           # GET/POST: UI preferences
+│           ├── bookmarks/             # GET/POST/DELETE: message bookmarks
+│           ├── pinned-rooms/          # GET/POST/DELETE: pinned room state
+│           ├── broadcast/             # POST: broadcast to all teammates
+│           ├── workbench-apps/        # GET: workbench app registry
+│           ├── start-workbench-app/   # POST: launch workbench apps
+│           ├── tab-closed/            # POST: handle ungraceful tab close
+│           ├── active-rooms/          # GET: active rooms for a teammate
+│           ├── pulse/                 # POST: unread pulse notification
+│           ├── dismiss-pulse/         # POST: clear pulse
+│           ├── print/                 # POST: generate printable room transcript
+│           ├── copy-room/             # POST: copy room to clipboard
+│           ├── livemirror-status/     # GET: live mirror on/off state
+│           ├── rsvp-check/            # GET: huddle RSVP check
+│           └── fetch-url/             # POST: proxy URL fetch
+├── scripts/
+│   ├── mcp-aether-server.js           # MCP server: post_to_aether, speed reader tools
+│   └── mcp-huddle-server.js           # MCP server: huddle lifecycle + token tools
+├── build/                             # Production build output
+├── static/                            # Static assets
+└── package.json                       # SvelteKit 2 + Svelte 5 + better-sqlite3
+
+library/aether/                        # Data directory (NOT in git)
+├── aether.db                          # SQLite database (~2.3GB)
+├── aether.db-shm, aether.db-wal      # WAL mode companions
+├── aether-preferences.json            # UI preferences
+├── workbench-apps.json                # Workbench app registry
+├── livemirror-global                  # Live mirror activation flag
+├── junk-phrases.md                    # Terminal chatter junk filter phrases
+├── backups/                           # DB snapshots
+├── snapshots/                         # State snapshots
+└── reminders-state/                   # Reminder state files
 ```
 
-Same flow applies for Boss → teammate (sender="boss" is no longer hardcoded — the self-delivery guard handles all senders uniformly).
+---
 
-### Data Flow
+## 2. Dependency Graph
+
+### External Dependencies (runtime-critical)
 
 ```
-Kitty tab opens (kitty-open-teammate.sh)
-  → POST /api/rooms/activate { sender: "natalie" }
-  → activateTeammate("natalie"), saveRoom(...) in SQLite
-  → emitEvent({ type: "room_update" })
-  → /api/events SSE stream pushes to browser
-  → +page.svelte EventSource receives event, calls loadSidebar()
-  → Sidebar re-renders with new teammate entry
+aether-app
+├── better-sqlite3          # SQLite driver -- all persistent state
+├── @modelcontextprotocol/sdk  # MCP server framework (mcp-aether-server, mcp-huddle-server)
+├── svelte 5 + @sveltejs/kit 2  # UI framework + server
+├── marked                  # Markdown rendering
+├── tailwindcss 3           # Styling
+├── uuid                    # Message/room ID generation
+└── openai                  # Unused (upstream dead code, still in deps)
 ```
 
-Same flow in reverse for tab close: `/end-session` → POST `/api/rooms/deactivate` → deactivate + huddle cleanup → SSE → sidebar update. Hover × on sidebar entries provides manual dismiss for ungraceful exits (REQ-126).
+### Internal Module Dependencies
 
-### Huddle Rooms
+```
++page.svelte (UI)
+  ├── renderUtils.ts (markdown + tool cards)
+  ├── clipboardUtils.ts
+  ├── bookmarkStore.svelte.ts
+  └── rulerStore.svelte.ts
 
-Active huddle rooms are managed by Facade-native huddle actions in `src/routes/api/huddle/+server.ts` (REQ-61). Huddle lifecycle (start, end, add, remove participants) is handled via the `mcp-huddle-server.js` MCP server, which calls the `/api/huddle` endpoint. Rooms are stored in SQLite with type `huddle` and session-scoped IDs (`huddle-{host}-{timestamp}`). The `/api/rooms` endpoint maps each entry to a huddle sidebar item with the host name and participant list. SSE-driven sidebar refresh picks up new huddles automatically when `loadSidebar()` is called on `huddle_update` events.
+/api/message (message routing)
+  ├── aether-db.ts (save, resolve rooms, token check, huddle members)
+  ├── kitten.ts (sendToKitty fan-out)
+  ├── events.ts (SSE emit)
+  ├── token-helpers.ts (triage, timeout, token advance)
+  └── houston-triage.ts (watchtower room clear)
 
-### Huddle Message Flow
+/api/huddle (huddle lifecycle)
+  ├── aether-db.ts (room CRUD, token init, member queries)
+  ├── huddle-helpers.ts (endHuddle, removeFromHuddle)
+  ├── token-helpers.ts (timer management)
+  ├── kitten.ts (auto-wake, sendToKitty notifications)
+  └── events.ts (SSE emit)
 
-Messages sent to `huddle-{host}` rooms fan out to all huddle members. The `/api/message` endpoint detects huddle rooms (room ID starts with `huddle-`), reads the SQLite participants list, and delivers via `sendToKitty` to every member except the sender. Token notifications are fanned out to all members' Kitty tabs only — not saved or displayed in Facade (REQ-64, REQ-77). Client-side filter also hides historical token messages from DB.
+/api/rooms/deactivate (session end)
+  ├── huddle-helpers.ts → removeFromAllHuddles
+  ├── aether-db.ts (resolveActiveRoom, setRoomType)
+  ├── active-teammates.ts (deactivateTeammate)
+  ├── kitten.ts (cleanupMiniAndMaybeCloseTab)
+  └── events.ts (SSE emit)
 
-**Cross-huddle routing guidance:** Before saving, if the sender is not a huddle participant (and not Boss or system), a notice is prepended to the message body with the sender's team huddle room ID (resolved via ORG.md Groups → team host → `resolveActiveRoom`). Fallback text if no active huddle found. The modified body flows through save, SSE emit, and Kitty fan-out as one message — no separate system message, no cooldown.
+huddle-helpers.ts
+  ├── aether-db.ts (room queries, member lists, room type changes)
+  ├── token-helpers.ts (clearTokenTimer, clearQueueAndRetriage)
+  ├── events.ts (SSE emit)
+  └── kitten.ts (sendToKitty notifications)
 
-**Room resolution (REQ-69, REQ-78):** Huddle rooms are session-scoped (`huddle-{host}-{timestamp}`). Short-form IDs like `huddle-claire` resolve to the active room via `resolveActiveRoom()` using `originalRoomId`. Resolution runs BEFORE `roomExists()` check (REQ-78) — prevents past/ghost rooms from intercepting short-form IDs. All huddle room saveRoom calls set `originalRoomId: "huddle-{host}"`. Unresolvable huddle rooms return 404 — never create phantom direct rooms.
+kitten.ts
+  ├── /opt/homebrew/bin/kitten (Kitty remote control binary)
+  ├── /tmp/honeybloom-kitty-*.sock (Kitty socket -- discovered at runtime)
+  ├── janus-config.csv (harness lookup for OpenCode inbox routing)
+  └── open-team.sh (teammate launcher)
 
-**Dedup guard (REQ-115):** The `start` action checks `resolveActiveRoom('huddle-' + host)` before creating a new room. If an active huddle exists for the host, returns the existing room ID with `{ existing: true }` instead of creating a duplicate. Prevents MCP retries and model double-calls from creating parallel huddles.
+mcp-aether-server.js → POST /api/message, /api/speed-reader-*
+mcp-huddle-server.js → POST /api/huddle, /api/message (read_room)
+```
 
-**End auto-resolve (REQ-115):** The `end` action falls back to `resolveActiveRoom(roomId)` when `getRoom(roomId)` returns null. Handles models passing short-form IDs like `huddle-katja` instead of the full timestamped room ID.
+### External System Dependencies
 
-**Late-join catch-up (REQ-133):** When a participant is added to an active huddle, they receive a chronological digest of all prior conversational messages via `sendToKitty` before the "added" notification. Token noise and tool activity cards are filtered out. Uses `getMessages(roomId)` from facade-db, formatted as `[HH:MM] sender: content` per line.
+```
+ORG.md (library/wiki/Organization/ORG.md)
+  Read by: /api/rooms (sidebar groups, roster)
+           /api/huddle (project validation, team leader list)
+           /api/message (cross-huddle routing -- sender's team host lookup)
 
-**Auto-request token (REQ-70):** Token enforcement is replaced with first-class auto-request. If the token is free, auto-grant and speak. If someone else holds it, auto-queue the sender and hold the message in `pending_messages` table. When the token advances to the queued sender, held messages are delivered automatically via `deliverPending()`. Boss-speaks and end-huddle deliver all pending messages via `deliverAllPending()` before clearing/closing. No 403 errors.
+janus-config.csv (library/scripts/janus-config.csv)
+  Read by: /api/rooms (model labels in sidebar)
+           kitten.ts (harness lookup for inbox routing)
 
-### Token Management (REQ-66/67)
+Kitty terminal (local process on Mac Mini)
+  Used by: kitten.ts for all message delivery, tab lifecycle, teammate launch
 
-Shared logic in `src/lib/server/token-helpers.ts`:
-- **Boss clears (REQ-66):** When Boss posts in a huddle, token holder and queue are cleared. All members notified "Boss spoke – token released. Request to speak." Everyone re-requests fresh.
-- **30s timeout (REQ-67):** `startTokenTimer(roomId)` sets a 30s setTimeout. If the holder doesn't post, the timer calls `getTokenHolder` (fire-time lookup, no stale refs) and advances to the next in queue. Timer restarts recursively if a new holder exists. Held messages for the new holder are delivered on advance.
-- **Timer lifecycle:** Started on grant and token advance. Cleared on post, Boss clear, manual release, participant removal, and huddle end. No orphan timers (Pattern 1).
+open-team.sh (library/scripts/open-team.sh)
+  Called by: kitten.ts:launchTeammate() for auto-wake
 
-### Live Mirror / Tool Activity (REQ-53/54/55/80/81/82 + May 26)
+Houston poller (OPS-scripts/houston-poller.py)
+  Calls: /api/houston-alert (POST alerts), /api/houston-heartbeat (POST heartbeat)
 
-Real-time tool activity relay for huddle observability. Multi-part pipeline:
+PostToolUse hooks (library/scripts/hooks/aether-relay.sh)
+  Calls: /api/tool-activity (POST tool cards for live mirror)
+```
 
-1. **PostToolUse hook** (`chica/hooks/facade-relay.sh`): Registered in both Claude Code (`claude-settings.json`) and OpenCode (`opencode.json`) configs. Checks global flag at `library/facade/livemirror-global` (REQ-134). Exits immediately if absent (zero cost). Filters out `post_to_facade` tool calls (REQ-80) and credential-bearing paths (FP-12). POSTs to `/api/tool-activity` with `{ sender, room, toolName, toolInput, toolOutput, status, summary }`.
+---
 
-2. **Summary cards (May 26):** The hook generates compact summaries per tool type:
-   - **Read**: filename + "(partial)" or "(full)" — extracted from tool output `<path>` tags and "Showing lines" footer
-   - **Grep**: filename extracted from first result line in tool output
-   - **Glob**: match count from output line count
-   - **Bash**: command text (first 80 chars) — tool input buffered via PreToolUse temp file
-   - **Edit**: filename from tool input
-   - **Write**: filename from tool input
-   - **Reddit/Vision**: generic descriptions
-   Tools without summaries (unrecognized) render as expanded cards with full input/output.
+## 3. Data Flow
 
-3. **Tool input bridging (OpenCode only):** OpenCode's PostToolUse dispatch does not set `OPENCODE_TOOL_INPUT` (env var is always `{}`). Workaround: PreToolUse hook (`red-mist.sh`) writes `OPENCODE_TOOL_INPUT` to `/tmp/facade-tool-input-{teammate}`. PostToolUse hook reads this file when the env var is empty. Claude Code path is unaffected — stdin JSON carries full tool input.
+### Message Delivery
 
-4. **Case-insensitive matching (May 26):** Tool name case patterns match both uppercase (Claude Code: `Read`) and lowercase (OpenCode: `read`).
+```
+Teammate A's Claude Code session
+  → MCP tool: post_to_aether({ body, room })
+  → mcp-aether-server.js derives sender from CWD basename
+  → POST /api/message { sender: "a", body, room: "direct-b" }
+  → Server: resolveActiveRoom("direct-b") → "direct-b-20260802-095500"
+  → Token check (huddle rooms only): getTokenHolder() must match sender
+  → Cross-huddle notice prepend (if sender not a participant)
+  → saveMessage() → SQLite messages table
+  → emitEvent({ type: "message" }) → SSE stream → browser UI updates
+  → Fan-out: sendToKitty("b", payload) → kitten send-text to Kitty tab
+  → Teammate B's Claude Code receives text as stdin input
+```
 
-5. **API endpoint** (`src/routes/api/tool-activity/+server.ts`): Saves as `type: "tool_call"` in SQLite, emits SSE with `toolCall: true` and `summary` field. Fans out full detail to all huddle participants' Kitty tabs via `sendToKitty` (REQ-81). Format: `[live-mirror] {sender} used {toolName}` + input + output + status.
+### Huddle Lifecycle
 
-6. **UI rendering** (`renderToolCard` in `+page.svelte`): If `summary` is truthy — compact card with status icon + tool name + summary text. If falsy — expanded card with full Input/Output blocks. Word wrap via `white-space: pre-wrap` (REQ-80). Sender label baseline aligned via conditional padding (REQ-82).
+```
+start_huddle MCP tool
+  → POST /api/huddle { action: "start", host, participants, project? }
+  → Dedup: resolveActiveRoom("huddle-{host}") -- return existing if found
+  → Work huddle: validate project against ORG.md, check uniqueness constraints
+  → saveRoom({ id: "huddle-{host}-{ts}", type: "huddle", participants })
+  → initHuddleToken(roomId) → huddle_tokens table
+  → Auto-wake: ensureTabOpen() for each participant → kitten.ts
+  → System message saved + SSE emitted + Kitty fan-out to all members
+```
 
-Activation: Boss types `/start-livemirror` in Facade input bar. Deactivation: `/end-livemirror`. Global flag persists through reboot.
+### Teammate Activation/Deactivation
 
-**Status indicator (REQ-135):** Green LED (8px circle, `#4ade80` with glow) left of "boss" label. Gray (`#666`) when off.
+```
+Tab opens (open-team.sh)
+  → POST /api/rooms/activate { name: "chica" }
+  → saveRoom({ id: "direct-chica-{ts}", type: "teammate" })
+  → activateTeammate() → /tmp/aether-active-teammates.json
+  → emitEvent({ type: "huddle_update" }) → sidebar refresh
 
-### Terminal Chatter Catcher (PostResponse + Codex Rollouts, REQ-301)
+Tab closes (end-session skill or manual)
+  → POST /api/rooms/deactivate { name: "chica" }
+  → removeFromAllHuddles("chica")           ← CRITICAL: removes from every huddle
+  →   per huddle: removeFromHuddle()
+  →     if 0 participants remain → setRoomType("past") ← huddle auto-closes
+  → setRoomType(directRoom, "past")
+  → deactivateTeammate() → removes from /tmp JSON
+  → emitEvent({ type: "huddle_update" })
+  → setTimeout 2s → cleanupMiniAndMaybeCloseTab() → kill process + close tab
+```
 
-Captures model text responses (non-MCP output) to the activity column. Two-part system:
+### SSE Event System
 
-1. **OpenCode fork** (`honeybloom.patch`): Adds `PostResponse` hook type at the loop exit in `prompt.ts`. Fires when `result === "stop"` or `lastAssistant.finish` includes "stop" with no pending tool calls. Extracts text-only parts from `lastAssistantMsg`, passes via stdin to hook script. Protected by try-catch — hook failure never crashes the session.
+```
+Server: emitEvent({ type, ... })
+  → Node.js EventEmitter ("aether-event")
+  → All connected SSE clients receive the event
+  → Browser: EventSource at /api/events
+  → +page.svelte: processes event type
+    → "message": update chat panel if current room matches
+    → "huddle_update": reload sidebar (fetch /api/rooms)
+    → "speed_reader_chunk": update speed reader display
+```
 
-2. **Hook script** (`chica/hooks/facade-response.sh`): Reads response text from stdin, POSTs to `/api/tool-activity` with `{ sender, room, body }`. Room pinned to `direct-{teammate}` — terminal chatter is Boss-only, no huddle fan-out.
+### Live Mirror (Tool Activity)
 
-3. **Junk filter (May 26):** Built into facade-response.sh. Filters out responses that are ≤10 words AND contain sit-out keywords (`queue|acknowledged|holding|waiting|standing|token|nothing to add`). "OK" and "Noted" explicitly pass through (no sit-out keyword match). Prevents status acknowledgments ("OK. Standing by." etc.) from cluttering the activity column.
+```
+Teammate's PostToolUse hook (aether-relay.sh)
+  → Checks livemirror-global flag exists
+  → Filters: skip post_to_aether calls, skip credential paths
+  → POST /api/tool-activity { sender, room, toolName, toolInput, toolOutput }
+  → saveMessage(type: "tool_call") + SSE emit(toolCall: true)
+  → Fan-out to huddle members via sendToKitty (format: [live-mirror] ...)
+```
 
-4. **Endpoint** (`/api/tool-activity`): Saves as `type: "response"` in SQLite, emits SSE with `response: true`. Rendered alongside tool_call cards in the activity column.
+---
 
-5. **Codex rollout reader** (`src/lib/server/harness-reader.ts`, `codex-rollout.ts`): Polls Codex's thread registry and every qualifying non-archived Honeybloom rollout every 2s. It consumes only the canonical assistant `response_item`/`output_text` representation, concatenates ordered text parts, and ignores duplicate `event_msg` records plus user, tool, and reasoning records. Exact one-level CWD and sessions-directory checks isolate teammate identity and exclude unrelated rollouts.
+## 4. Blast Radius Map
 
-6. **Durability and routing:** A single SQLite-backed `codex_rollout_state_v1` cursor map is persisted at the complete-line cutover boundary before polling. Newly discovered post-cutover rollouts start at byte zero; partial JSONL lines wait for completion. Stable thread+record-offset+room IDs make retries and restarts idempotent, while no-room responses remain unadvanced for later retry. Responses pass through the shared credential and junk filters, persist as `type: "response"` in every active teammate room, and emit SSE only after a new DB insert.
+### aether-db.ts
+Touches: EVERYTHING. Every API endpoint, both MCP servers, huddle-helpers, token-helpers. Changes here affect all message storage, room management, token state, bookmarks, speed reader, Houston alerts.
 
-**Harness coverage:** OpenCode and Codex terminal chatter are captured. Claude Code still has no equivalent PostResponse source.
+### huddle-helpers.ts
+Touches: /api/huddle (lifecycle), /api/rooms/deactivate (cleanup), token-helpers. Changes affect huddle creation, ending, participant management, and the deactivation cleanup path.
 
-### Wakeup Message (REQ-85, fixed May 26)
+### kitten.ts
+Touches: /api/message (delivery), /api/huddle (auto-wake), /api/rooms/deactivate (process cleanup), /api/rooms (alive check), token-helpers (Kitty fan-out). Changes affect ALL message delivery to teammates and the entire teammate lifecycle.
 
-`kitty-open-teammate.sh` builds a Facade-format wakeup prompt via `build_wakeup_message()`. The prompt includes session context, Facade directive, and behavioral guidance formatted as structured metadata (`sender: boss / room: direct-{name} / timestamp / body`).
+### token-helpers.ts
+Touches: /api/message (triage after Boss speaks, retriage after post), /api/huddle (timer management), huddle-helpers (cleanup on remove). Changes affect the entire huddle speaking-turn system.
 
-**Delivery:**
-- **Claude Code**: via `--dangerously-skip-permissions "$wakeup_prompt"` — passes as initial user prompt
-- **OpenCode**: via `--prompt "$wakeup_prompt"` flag (previously missing — OpenCode launched bare with no wakeup)
+### events.ts
+Touches: Every endpoint that modifies state. Changes affect ALL real-time UI updates.
 
-**Fix (May 26, 24d6dfb):** `build_wakeup_message()` was scoped inside the `else` (Claude Code) branch only. Moved before the harness check so both harnesses receive the wakeup. OpenCode gets `--prompt` flag. Claude Code path unchanged.
+### /api/message/+server.ts
+Touches: Message storage, huddle fan-out, token enforcement, cross-huddle routing, Houston triage. This is the busiest endpoint -- changes have the widest blast radius of any single file.
 
-### REQ Log
+### /api/rooms/deactivate/+server.ts
+Touches: Huddle membership (removeFromAllHuddles), room lifecycle, teammate state, process cleanup. Changes affect what happens when ANY teammate session ends.
 
-| REQ | Description | Status |
-|-----|-------------|--------|
-| REQ-000 | UI integration — Chica's mockup into Facade | Shipped |
-| REQ-002 | Fixed input bar position (outside scrollable area) | Shipped |
-| REQ-003 | Wipe sample data — empty state | Shipped |
-| REQ-004 | Kitty lifecycle mirror — teammate opens/closes in sidebar | Shipped |
-| REQ-005 | SSE push replacing browser polling for instant updates | Shipped |
-| REQ-006 | Facade auto-start/stop with Kitty lifecycle + port 51730 + notify_facade cleanup | DROPPED | Boss prefers manual Raycast shortcuts (Facade/Markwhen). Dead code cleaned from kitty-open-teammate.sh, watchdog deleted. |
-| REQ-007 | Boss→Kitty messaging — POST /api/message, kitten send-text, SSE echo, conversation view | Shipped |
-| REQ-012 | Input bar text wrapping — autosize library, auto-grow textarea, word-wrap instead of horizontal overflow | Shipped |
-| REQ-013 | Sender guard removal — teammate-to-teammate Kitty delivery, unconditional forward | Shipped |
-| REQ-015 | Input bar label "Boss" → "boss" | Shipped |
-| REQ-016 | Sidebar architecture: 3-section layout (Teammates, Huddles, Past Rooms), natural flow, 60px section padding, scrollable | Shipped |
-| REQ-017 | Huddle rooms in sidebar — reads `/tmp/kitty-huddles.json`, shows host name + participants in compact layout; teammate names lowercase | Shipped |
-| REQ-018 | Premium black palette — `--color-bg: #0b0d10`, `--color-bg-panel: #0e1114`, `--color-bg-step4: #282a30`, sidebar border-right dashed | Shipped |
-| REQ-019 | Dashed borders — all section dividers, provoque.ai footer, and input box use 1px dashed var(--color-bg-step4) | Shipped |
-| REQ-020 | Sidebar section headers font changed to Inter | Shipped |
-| REQ-021 | Sidebar teammate name fonts changed to system-ui | Shipped |
-| REQ-022 | Chat sender labels font changed to Inter | Shipped |
-| REQ-023 | Remove Send button, spacer preserves input bar height | Shipped |
-| REQ-024 | 2px #5A3E2E copper left border on input box and boss messages | Shipped |
-| REQ-025 | "Fire up Markwhen" button in sidebar, symlinks markwhen-fork.html + dist/ into static/, replaces provoque.ai footer | Shipped |
-| REQ-026 | Fan-out delivery from huddle rooms — messages to huddle-{host} deliver to all members' Kitty tabs | Shipped |
-| REQ-056 | Huddle state polling in room-sync.ts — `/tmp/kitty-huddles.json` polled every 3s, `huddle_update` SSE emitted on state change | Shipped |
-| REQ-057 | Delete old communication tools — removed send_message (honeybloom-mailbox MCP) and post_in_huddle (honeybloom-huddle) from all teammate configs and server-huddle.py. Facade post_to_facade is the replacement. | Shipped |
-| REQ-058 | Sender identity fix — removed FACADE_SENDER=rio from user-level ~/.claude.json. CWD-based derivation (`basename(process.cwd())`) now takes effect for all 30 Claude Code teammates. Type C — takes effect on session restart. | Shipped |
-| REQ-060 | Session-scoped room IDs — per-session isolation for direct rooms. Room created on teammate activation with `direct-{name}-{timestamp}` ID. Past rooms display full ID with prefix. | Shipped |
-| REQ-061 | Facade-native huddle lifecycle tools — start_huddle, end_huddle, add_to_huddle, remove_from_huddle, request_token, release_token. SQLite huddle_tokens table, auto-wake, sendToKitty notifications. | Shipped |
-| REQ-062 | Server-side token enforcement — `/api/message` rejects huddle posts from non-holders. Boss and system exempt. `getTokenHolder()` added to facade-db. Token cleanup on participant removal. | Shipped |
-| REQ-063 | Fix token enforcement placement — check before `saveMessage`/`emitEvent` instead of after. Prevents rejected posts from appearing in Facade. | Shipped |
-| REQ-064 | Token notification delivery — fan-out "Token passed to X" to all huddle members' Kitty tabs via `sendToKitty`. Fixes deadlock where new holder didn't know it was their turn. | Shipped |
-| REQ-065 | Chat window jump fix via ResizeObserver — FAILED. Wrong approach (JS compensation for layout problem). Replaced by REQ-068. | Failed |
-| REQ-066 | Boss message clears token — holder and queue cleared, "Boss spoke – token released" notification to all members. | Shipped |
-| REQ-067 | Token timeout — 30s auto-release. Timer managed across all lifecycle paths. Shared token-helpers.ts module. | Shipped |
-| REQ-068 | Floating input bar — position absolute over chat area. padding-bottom clearance. Replaces REQ-065. | Shipped |
-| REQ-069 | Huddle room resolution — short-form IDs resolve to active session-scoped room via originalRoomId. Guard prevents phantom direct rooms. Ghost rooms cleaned. | Shipped |
-| REQ-070 | Auto-request token — no 403. Token free → auto-grant. Someone else holds → auto-queue + hold message in pending_messages. Delivered on token advance, Boss-speaks, or huddle end. | Shipped |
-| REQ-126 | Event-driven room lifecycle — replaces 3s room-sync polling with POST /api/rooms/activate (tab open) and POST /api/rooms/deactivate (tab close / ungraceful exit). Deactivate handles huddle cleanup. room-sync.ts deleted. Hover × in sidebar for manual dismissal. | Shipped |
-| REQ-138 | Smart dismiss — × button checks if Kitty tab is alive via `isTabAlive()`. If alive, closes it via `closeKittyTab()` before deactivating. Covers CMD+W and crash cases without polling. | Shipped |
-| REQ-139 | Control strip + auto-scroll pause. Invisible strip above input bar (premium black, no border). Contains live mirror LED (relocated from boss label) and scroll pause toggle. Pause gates the $effect scroll-to-bottom. Auto-resumes on send. Copper (#7a5e4a) when paused, gray (#555) when active. Lucide inline SVGs. | Shipped |
-| REQ-140 | Auto-reconnect on tab visibility change. `visibilitychange` listener reconnects SSE EventSource + reloads sidebar + current room messages when Boss returns from another browser tab. Fixes blank screen after backgrounded tab. SSR guard on onDestroy. | Shipped |
-| REQ-142 | VCR step-through scroll control. 3-state model: live (auto-scroll), paused (messages queue invisibly), step-through (play pops one at a time with scrollIntoView). Stop flushes queue to live. Queue counter badge (copper 10px). Control strip: LED + pause/play + stop. Auto-flush on send and room switch. Replaces REQ-139 simple pause. Padding-bottom 120px. | Shipped |
-| REQ-260 | Auto-pause for huddle rooms. Huddles start paused on entry via `stoppedHuddles` Set. stepOne batch-pops terminal chatter + next real message. Boss messages bypass queue (SSE sender guard). Only Stop breaks pause permanently. | Shipped |
-| REQ-262 | Multi-huddle auto-pause fix. All huddles implicitly paused unless in `stoppedHuddles` — removes single-string `pausedRoom` dependency for huddles. `queuedMessageIds` changed from flat `string[]` to per-room `Record<string, string[]>`. SSE handler, DB load path, flushQueue, stepOne, sendMessage all updated. `isCurrentRoomPaused` $derived centralizes pause check. Ctrl+Right calls `stepOne()`. | Shipped |
-| REQ-264 | Sidebar nav clamp — Ctrl+Up/Down stops at top/bottom instead of wrapping. `Math.min`/`Math.max` replaces modulo. | Shipped |
-| — | **Terminal chatter catcher** — PostResponse hook in OpenCode fork. Captures model text output to Facade activity column. Junk filter (≤10 words + sit-out keywords). OpenCode-only (Claude Code has no PostResponse hook type). | Shipped May 26 |
-| REQ-301 | **Codex terminal chatter capture** — durable complete-line rollout cursors, canonical assistant-response parsing, concurrent-session discovery, per-room stable IDs, retry-on-no-room, shared redaction/junk filtering, SQLite persistence, and SSE fan-out. Chat, tool activity, and Sol responses reconcile in the Aether DB. | Shipped Jul 21 |
-| REQ-303 | **Sol lifecycle safety** – Janus-aware inbox routing, birth-fingerprinted Claude/Codex process-tree cleanup, fail-closed Kitty tab closure, canonical Janus path correction, and focused lifecycle tests. Used for the serial 26-teammate Sol migration with protected-session checks. | Shipped Jul 22 |
-| REQ-304 | **Sticky input fix** – removed the JavaScript textarea height reset and synchronous `scrollHeight` read from every keystroke; restored native `field-sizing: content`. Production build passed and Boss confirmed typing was significantly better. | Shipped Jul 22 |
-| — | **Summary cards v2** — Read shows filename + partial/full, Grep shows filename, Glob shows match count, Bash shows command (80 chars), Edit/Write show filename. Case-insensitive tool name matching. PreToolUse temp file bridges tool input for OpenCode. | Shipped May 26 |
-| — | **Wakeup fix** — OpenCode now receives wakeup prompt via `--prompt` flag (was launching bare). `build_wakeup_message()` moved outside Claude Code branch. | Shipped May 26 |
+### /api/huddle/+server.ts
+Touches: Room creation (team + work huddles), participant management, token initialization, auto-wake, dedup guards, ORG.md validation. Changes affect all huddle operations.
+
+### /api/rooms/+server.ts
+Touches: Sidebar rendering. Reads ORG.md (roster, sidebar groups), janus-config.csv (model labels), alive state. Changes affect what Boss sees in the sidebar.
+
+### +page.svelte (1537 lines)
+Touches: All client-side rendering -- sidebar, chat panel, activity panel, speed reader, VCR controls, bookmarks, keyboard shortcuts. Changes can introduce visual regressions visible to Boss in real time.
+
+### ORG.md (external)
+Read by: /api/rooms, /api/huddle, /api/message. Changes to roster, sidebar order, groups, or project list affect sidebar rendering, huddle validation, and cross-huddle routing.
+
+### janus-config.csv (external)
+Read by: /api/rooms (model labels), kitten.ts (harness routing). Changes affect sidebar model badges and OpenCode inbox routing.
+
+### open-team.sh (external)
+Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for huddle participants and incoming messages.
+
+---
+
+## 5. Known Issues
+
+### Huddle auto-close on deactivation
+`removeFromAllHuddles()` in deactivate endpoint removes the teammate from every active huddle. `removeFromHuddle()` auto-ends the huddle when 0 participants remain. During mass restart (auth rotation), sequential deactivation of all participants closes the huddle. Boss reported Gunnar leadership huddle, Onyx work huddle, and Manhattan work huddle all auto-closed during auth restart. Root cause: deactivation path treats huddle membership as tied to session lifecycle, but huddles should persist across restarts.
+
+### Sidebar blink on mass boot
+When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
+
+### +page.svelte size
+At 1537 lines, the main page file handles sidebar, chat, activity panel, speed reader, VCR controls, bookmarks, keyboard shortcuts, and lightbox -- all in one component. Further extraction is blocked on needing a central message store (per PLAYBOOK).
+
+### Stale references
+ARCHITECTURE.md (this file) previously used "Facade" (old project name) throughout and referenced deprecated systems (OpenCode, Codex, `/tmp/facade-*` paths). Active teammates file is `/tmp/aether-active-teammates.json`. MCP servers are `honeybloom-aether` and `honeybloom-huddle`.
+
+### Database size
+aether.db is ~2.3GB and growing. No retention policy or archival mechanism exists. WAL mode is enabled.
+
+### No ARCHITECTURE.md maintenance
+This file did not exist in usable form until Aug 2, 2026. All prior Aether REQs (300+) were developed without the architectural reference the RUNBOOK requires for B2 blast radius review.
+
+---
 
 ## Conventions
 
-- No em dashes. En dash with spaces for dashes: "the app — built for privacy".
-- Follow existing patterns (Svelte 5 runes, Tailwind classes).
-- No comments unless explaining a non-obvious decision.
-- ARCHITECTURE.md is the source of truth. Update after every shipped REQ.
+- Svelte 5 runes ($state, $effect, $props, $derived) -- no legacy Svelte 4 patterns
+- TailwindCSS v3 for styling
+- JetBrains Mono, weight 300, 12px, line-height 1.8
+- Foundation.css shared with Bavaria, Ember, Wiki apps (symlinked into src/lib/)
+- Sidebar CSS shared via sidebar.css (symlinked)
+- En dash with spaces for dashes. No em dashes.
+- No comments unless explaining a non-obvious decision
+- Room IDs: `direct-{name}-{timestamp}`, `huddle-{host}-{timestamp}`, `work-{host}-{timestamp}`
+- `isHuddleRoom(id)` checks `startsWith("huddle-") || startsWith("work-")`
+- Boss and system are exempt from token enforcement
+- Update this file after every shipped REQ (R14)
