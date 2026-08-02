@@ -51,11 +51,11 @@ library/aether-app/                    # App codebase (git: valaquer/aether)
 │       ├── rulerStore.svelte.ts       # Measurement ruler state
 │       └── api/
 │           ├── message/               # POST: send message, fan-out, token enforcement
-│           ├── rooms/                 # GET: sidebar data (teammates, huddles, past rooms)
+│           ├── rooms/                 # GET: sidebar data (Direct Rooms, Huddle Rooms, Past Sessions)
 │           │   ├── activate/          # POST: teammate comes online
 │           │   └── deactivate/        # POST: teammate goes offline + huddle cleanup
 │           ├── huddle/                # POST: start/end/add/remove/request/pass
-│           ├── archive-huddle/        # POST: archive huddle to past rooms
+│           ├── archive-huddle/        # POST: archive huddle session to Past Sessions
 │           ├── huddle-history/        # GET: past huddle data
 │           ├── events/                # GET: SSE stream
 │           ├── messages/              # GET: message history for a room
@@ -165,7 +165,7 @@ mcp-huddle-server.js → POST /api/huddle, /api/message (read_room)
 
 ```
 ORG.md (library/wiki/Organization/ORG.md)
-  Read by: /api/rooms (sidebar groups, roster)
+  Read by: /api/rooms (sidebar groups, roster, permanent team huddle rooms from Groups, permanent project rooms from "Active project rooms in Aether")
            /api/huddle (project validation, team leader list)
            /api/message (cross-huddle routing -- sender's team host lookup)
 
