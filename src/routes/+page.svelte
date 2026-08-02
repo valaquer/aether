@@ -56,7 +56,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		});
 	});
 
-	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string; project?: string };
+	type SidebarItem = { id: string; name: string; kind: "teammate" | "huddle" | "past"; model?: string; participants?: string[]; online?: boolean; group?: string; groupIdx?: number; hostGroup?: string; hostGroupIdx?: number; startedAt?: string; project?: string; active?: boolean };
 	type ChatMsg = { id: string; sender: string; content: string; createdAt: string; toolCall?: boolean; response?: boolean; summary?: string };
 	// Bookmark type imported from bookmarkStore.svelte.ts
 	type NavItem =
@@ -67,7 +67,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		| { type: "bookmark"; bm: Bookmark }
 		| { type: "past"; item: SidebarItem };
 
-	function isHuddleRoom(id: string | undefined | null): boolean { return !!id && (id.startsWith("huddle-") || id.startsWith("work-")); }
+	function isHuddleRoom(id: string | undefined | null): boolean { return !!id && (id.startsWith("huddle-") || id.startsWith("work-") || id.startsWith("fixture-huddle-") || id.startsWith("fixture-work-")); }
 
 	function formatPastRoom(name: string): { label: string; date: string } {
 		const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -89,6 +89,10 @@ import LucideGauge from '~icons/lucide/gauge';
 			const [, host, y, mo, d, h, mi] = huddleMatch;
 			return { label: host + "'s huddle", date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
+		const fixtureHuddleMatch = name.match(/^fixture-huddle-([a-z]+)$/);
+		if (fixtureHuddleMatch) return { label: fixtureHuddleMatch[1] + "'s huddle", date: "" };
+		const fixtureWorkMatch = name.match(/^fixture-work-([a-z]+)$/);
+		if (fixtureWorkMatch) return { label: fixtureWorkMatch[1] + " work huddle", date: "" };
 		const bareMatch = name.match(/^direct-([a-z]+)$/);
 		if (bareMatch) return { label: bareMatch[1], date: "" };
 		const offlineMatch = name.match(/^offline-([a-z]+)$/);
@@ -219,11 +223,11 @@ import LucideGauge from '~icons/lucide/gauge';
 	let navItems = $derived.by(() => {
 		const items: NavItem[] = [];
 
-		items.push({ type: "header", section: "Huddles" });
+		items.push({ type: "header", section: "Huddle Rooms" });
 		for (const item of sidebarItems.filter(x => x.kind === "huddle").sort((a, b) => (a.hostGroupIdx ?? 999) - (b.hostGroupIdx ?? 999))) {
 			items.push({ type: "huddle", item });
 		}
-		items.push({ type: "header", section: "Teammates" });
+		items.push({ type: "header", section: "Direct Rooms" });
 		for (const item of sidebarItems.filter(x => x.kind === "teammate")) {
 			items.push({ type: "teammate", item });
 		}
@@ -237,14 +241,14 @@ import LucideGauge from '~icons/lucide/gauge';
 		const query = pastSearchQuery.trim().toLowerCase();
 		const pastItems = sidebarItems.filter(x => {
 			if (x.kind !== "past") return false;
-			if (query && !x.id.toLowerCase().includes(query)) return false;
+			if (query && !x.id.toLowerCase().includes(query) && !x.name.toLowerCase().includes(query)) return false;
 			return true;
 		}).sort((a, b) => {
 			const timeA = a.startedAt ? new Date(a.startedAt).getTime() : 0;
 			const timeB = b.startedAt ? new Date(b.startedAt).getTime() : 0;
 			return timeB - timeA;
 		});
-		items.push({ type: "header", section: "Past Rooms" });
+		items.push({ type: "header", section: "Past Sessions" });
 		if (query) {
 			for (const item of pastItems) {
 				items.push({ type: "past", item });
@@ -309,7 +313,7 @@ import LucideGauge from '~icons/lucide/gauge';
 			pinnedRoomIds = pinnedData.rooms || [];
 			const prefs = isInitialLoad ? await responses[2].json() : null;
 			const teammates = (data.teammates ?? []).map((t: { id: string; name: string; model: string; online: boolean; group?: string; groupIdx?: number }) => ({ id: t.id, name: t.name, model: t.model || "", kind: "teammate" as const, online: t.online, group: t.group || "", groupIdx: t.groupIdx ?? 0 }));
-			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[]; project?: string }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999, project: h.project }));
+			const currentHuddles: SidebarItem[] = (data.huddles ?? []).map((h: { id: string; name: string; host: string; hostGroup?: string; hostGroupIdx?: number; participants: string[]; project?: string; active?: boolean }) => ({ id: h.id, name: h.name, kind: "huddle" as const, participants: h.participants, hostGroup: h.hostGroup || "", hostGroupIdx: h.hostGroupIdx ?? 999, project: h.project, active: h.active ?? true }));
 			const pastItems: SidebarItem[] = (data.pastRooms ?? []).map((p: { id: string; name: string; startedAt?: string }) => ({ id: p.id, name: p.name, kind: "past" as const, startedAt: p.startedAt }));
 
 			const items = [...teammates, ...currentHuddles, ...pastItems];
@@ -1004,10 +1008,10 @@ import LucideGauge from '~icons/lucide/gauge';
 					<div
 						data-nav-idx={i}
 						onclick={() => selectedIndex = i}
-						style="padding: 1rem 1rem 1rem 1.5rem; cursor: pointer; {nav.section !== 'Teammates' ? '' : 'border-top: 1px dashed var(--color-bg-step4);'} border-bottom: 1px dashed var(--color-bg-step4); background: {selectedIndex === i ? 'var(--color-bg-element)' : 'transparent'};"
+						style="padding: 1rem 1rem 1rem 1.5rem; cursor: pointer; {nav.section !== 'Direct Rooms' ? '' : 'border-top: 1px dashed var(--color-bg-step4);'} border-bottom: 1px dashed var(--color-bg-step4); background: {selectedIndex === i ? 'var(--color-bg-element)' : 'transparent'};"
 					>
 						<p style="display: inline-block; font-size: 13px; font-weight: 500; font-family: var(--font-sans); background: var(--gradient-accent); background-repeat: no-repeat; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">{nav.section}</p>
-						{#if nav.section === "Past Rooms"}
+						{#if nav.section === "Past Sessions"}
 							<input
 								type="text"
 								bind:value={pastSearchQuery}
@@ -1047,7 +1051,7 @@ import LucideGauge from '~icons/lucide/gauge';
 						onclick={() => { if (pulsingTeammates.includes(fmt.label)) { pulsingTeammates = pulsingTeammates.filter(n => n !== fmt.label); fetch("/api/dismiss-pulse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teammate: fmt.label }) }).catch(() => {}); } selectedIndex = i; }}
 						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashName === fmt.label ? '#555' : (pulsingTeammates.includes(fmt.label) ? '' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)'))}; background: {selectedIndex === i ? 'var(--color-bg-element)' : ((item.groupIdx ?? 0) % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}; position: relative; {archiveFlashName === fmt.label ? 'opacity: 0.3;' : ''}"
 					>
-						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span>{#if isFirstInGroup && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.group}</span>{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
+						<div><span class="teammate-led" style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: {item.online && !archivingTeammates.has(fmt.label) ? '#4ade80' : '#555'}; {item.online && !archivingTeammates.has(fmt.label) ? 'box-shadow: 0 0 4px #4ade80, 0 0 8px #4ade8066;' : ''}"></span><span style="{item.online && !archivingTeammates.has(fmt.label) ? '' : 'color: #555; opacity: 0.35;'}">{fmt.label}</span>{#if isFirstInGroup && item.group} <span style="font-size: 8px; color: #7a5e4a; margin-left: 1ch; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; {item.online && !archivingTeammates.has(fmt.label) ? '' : 'opacity: 0.35;'}">{item.group}</span>{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if} {#if item.model} <span class="sidebar-meta" style="font-size: 9px; color: #666; font-family: Menlo, monospace; font-weight: bold;">{item.model}</span>{/if}</div>
 {#if !archivingTeammates.has(fmt.label)}<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); dismissTeammate(fmt.label); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashName === fmt.label ? '#7a5e4a' : ''}" /></button>
@@ -1064,18 +1068,20 @@ import LucideGauge from '~icons/lucide/gauge';
 						class="sidebar-row"
 						data-nav-idx={i}
 						onclick={() => selectedIndex = i}
-						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {archiveFlashRoom === item.id ? '#555' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)')}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (huddleLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative; {archiveFlashRoom === item.id ? 'opacity: 0.3;' : ''}"
+						style="padding: 0 1rem 0 1.5rem; cursor: pointer; color: {!item.active ? '#555' : archiveFlashRoom === item.id ? '#555' : (selectedIndex === i ? 'var(--color-text)' : 'var(--color-text-muted)')}; background: {selectedIndex === i ? 'var(--color-bg-element)' : (huddleLocalIdx % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent')}; position: relative; {!item.active ? 'opacity: 0.35;' : archiveFlashRoom === item.id ? 'opacity: 0.3;' : ''}"
 					>
 						<div>{#if item.id.startsWith("huddle-houston")}<span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">HOUSTON</span> <span style="font-size: 9px; color: #666;">watchtower</span>{:else if item.project}<span style="font-size: 8px; color: #5a8f6e; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.project}</span> work huddle{:else if isMainHuddle}Main huddle{:else if item.hostGroup}{fmt.label.replace("'s huddle", "")}'s <span style="font-size: 8px; color: #7a5e4a; font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;">{item.hostGroup}</span> huddle{:else}{fmt.label}{/if} {#if fmt.date}<span class="sidebar-meta" style="font-size: 9px; color: #666;">{fmt.date}</span>{/if}</div>
 						{#if item.participants?.length}
 							<div style="font-size: 9px; line-height: 1.6; color: #666;">{#each item.participants as p, pi}{#if pi > 0}{', '}{/if}<span style="{onlineNames.has(p) ? '' : 'color: #555; opacity: 0.35;'}">{p}</span>{/each}</div>
 						{/if}
+						{#if item.active !== false}
 						<span class="sidebar-actions" style="{pinnedRoomIds.includes(item.id) ? 'opacity: 1;' : ''}">
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); pinnedRoomIds.includes(item.id) ? unpinFromSidebar(item.id) : pinToSidebar(item.id); }} title={pinnedRoomIds.includes(item.id) ? "Unpin" : "Pin"}><LucidePin width={14} height={14} style="color: {pinnedRoomIds.includes(item.id) ? '#7a5e4a' : '#555'};" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); archiveHuddle(item.id); }} title="Archive"><LucideArchive width={14} height={14} style="color: {archiveFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); copyRoom(item.id); }} title="Copy"><LucideFiles width={14} height={14} style="color: {copyFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 							<button class="sidebar-action-btn" onclick={(e) => { e.stopPropagation(); printRoom(item.id); }} title="Print"><LucidePrinter width={14} height={14} style="color: {printFlashRoom === item.id ? '#7a5e4a' : ''}" /></button>
 						</span>
+						{/if}
 					</div>
 				{:else if nav.type === "bookmark"}
 					{@const bm = nav.bm}
@@ -1130,7 +1136,7 @@ import LucideGauge from '~icons/lucide/gauge';
 		<!-- Chat column (col 3 — 570px) -->
 		<div style="position: relative; overflow: hidden;" class="flex flex-col">
 			<!-- Conversation area (scrollable) -->
-			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
+			<div class="flex-1 overflow-y-auto" class:reading-mode={focusMode} style="background: var(--color-bg); padding-bottom: {currentRoomKind === "past" || selectedConvId?.startsWith("offline-") || selectedConvId?.startsWith("fixture-") ? '0' : (focusMode ? '160px' : '120px')};" bind:this={messagesContainer} onscroll={(e) => { const el = e.currentTarget; userScrolledUp = el.scrollTop < el.scrollHeight - el.clientHeight - 50; }}>
 				<div class="py-2" style="display: flex; flex-direction: column; margin-top: auto;">
 					{#if hasMoreMessages && rewindIndex === null}
 						<div style="text-align: center; padding: 0.5rem;">
@@ -1166,7 +1172,7 @@ import LucideGauge from '~icons/lucide/gauge';
 				</div>
 			</div>
 			<!-- Input bar -->
-			{#if currentRoomKind !== "past" && currentRoomKind !== "header" && !selectedConvId?.startsWith("offline-")}
+			{#if currentRoomKind !== "past" && currentRoomKind !== "header" && !selectedConvId?.startsWith("offline-") && !selectedConvId?.startsWith("fixture-")}
 			<div style="position: absolute; bottom: 0; left: 0; right: 0; background: var(--color-bg);">
 			<!-- Control strip -->
 			<div style="display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 0 12px;">

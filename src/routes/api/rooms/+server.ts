@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getRoomsByType, getAllRooms, getHuddleMembers } from "$lib/server/aether-db";
+import { getRoomsByType, getAllRooms, getHuddleMembers, resolveActiveRoom, getRoom } from "$lib/server/aether-db";
 import { getAliveTeammates } from "$lib/server/kitten";
 import fs from "fs";
 
@@ -43,6 +43,41 @@ function loadRoster(): string[] {
 	} catch {
 		return [];
 	}
+}
+
+function loadTeamHuddleRooms(): { host: string; members: string[] }[] {
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		const rooms: { host: string; members: string[] }[] = [];
+		let inGroups = false;
+		for (const line of raw.split("\n")) {
+			if (line.startsWith("## Groups")) { inGroups = true; continue; }
+			if (inGroups && line.startsWith("## ")) break;
+			if (!inGroups || !line.includes("(host:")) continue;
+			const match = line.match(/^(.+?)\s*\(host:\s*([a-z0-9-]+)\)/i);
+			if (!match) continue;
+			const members = match[1].split(",").map(m => m.trim().toLowerCase()).filter(Boolean);
+			const host = match[2].toLowerCase();
+			if (host && members.length) rooms.push({ host, members });
+		}
+		return rooms;
+	} catch { return []; }
+}
+
+function loadProjectHuddleRooms(): string[] {
+	try {
+		const raw = fs.readFileSync(ORG_PATH, "utf-8");
+		const projects: string[] = [];
+		let inSection = false;
+		for (const line of raw.split("\n")) {
+			if (line.startsWith("## Active project rooms in Aether")) { inSection = true; continue; }
+			if (inSection && line.startsWith("## ")) break;
+			if (!inSection) continue;
+			const trimmed = line.replace(/^[-*]\s*/, "").trim();
+			if (trimmed) projects.push(trimmed);
+		}
+		return projects;
+	} catch { return []; }
 }
 
 function loadSidebarGroups(): { label: string; members: string[] }[] {
@@ -103,11 +138,85 @@ export const GET: RequestHandler = async () => {
 		return a.memberIdx - b.memberIdx;
 	});
 
-	const huddleRooms = getAllRooms().filter((r) => r.type === "huddle");
-	const huddles = huddleRooms.map((r) => {
+	const teamHuddleFixtures = loadTeamHuddleRooms();
+	const projectHuddleFixtures = loadProjectHuddleRooms();
+	const activeHuddleRoomIds = new Set<string>();
+
+	const huddles: {
+		id: string; name: string; host: string; hostGroup: string;
+		hostGroupIdx: number; participants: string[]; startedAt?: string;
+		project?: string; active: boolean;
+	}[] = [];
+
+	for (const fixture of teamHuddleFixtures) {
+		const activeId = resolveActiveRoom(`huddle-${fixture.host}`);
+		if (activeId) {
+			activeHuddleRoomIds.add(activeId);
+			huddles.push({
+				id: activeId,
+				name: fixture.host,
+				host: fixture.host,
+				hostGroup: memberToGroup[fixture.host]?.label || "",
+				hostGroupIdx: memberToGroup[fixture.host]?.idx ?? sidebarGroups.length,
+				participants: getHuddleMembers(activeId),
+				startedAt: getRoom(activeId)?.startedAt,
+				active: true,
+			});
+		} else {
+			huddles.push({
+				id: `fixture-huddle-${fixture.host}`,
+				name: fixture.host,
+				host: fixture.host,
+				hostGroup: memberToGroup[fixture.host]?.label || "",
+				hostGroupIdx: memberToGroup[fixture.host]?.idx ?? sidebarGroups.length,
+				participants: fixture.members,
+				active: false,
+			});
+		}
+	}
+
+	const allPastRooms = getRoomsByType("past");
+	for (const project of projectHuddleFixtures) {
+		const key = project.toLowerCase();
+		const activeId = resolveActiveRoom(`work-${key}`);
+		if (activeId) {
+			activeHuddleRoomIds.add(activeId);
+			const room = getRoom(activeId);
+			huddles.push({
+				id: activeId,
+				name: key,
+				host: parseDisplayName(activeId),
+				hostGroup: memberToGroup[parseDisplayName(activeId)]?.label || "",
+				hostGroupIdx: memberToGroup[parseDisplayName(activeId)]?.idx ?? sidebarGroups.length,
+				participants: getHuddleMembers(activeId),
+				startedAt: room?.startedAt,
+				project: room?.name || project,
+				active: true,
+			});
+		} else {
+			const lastSession = allPastRooms
+				.filter(r => r.originalRoomId === `work-${key}`)
+				.sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""))[0];
+			const lastParticipants = lastSession ? JSON.parse(lastSession.participants || "[]") : [];
+			huddles.push({
+				id: `fixture-work-${key}`,
+				name: key,
+				host: "",
+				hostGroup: "",
+				hostGroupIdx: sidebarGroups.length,
+				participants: lastParticipants,
+				project: project,
+				active: false,
+			});
+		}
+	}
+
+	// Include any active huddles not covered by fixtures (ad-hoc huddles)
+	const remainingHuddles = getAllRooms().filter(r => r.type === "huddle" && !activeHuddleRoomIds.has(r.id));
+	for (const r of remainingHuddles) {
 		const isWork = r.id.startsWith("work-");
 		const host = parseDisplayName(r.id);
-		return {
+		huddles.push({
 			id: r.id,
 			name: isWork ? r.name : host,
 			host: isWork ? host : r.name,
@@ -116,12 +225,13 @@ export const GET: RequestHandler = async () => {
 			participants: getHuddleMembers(r.id),
 			startedAt: r.startedAt,
 			project: isWork ? r.name : undefined,
-		};
-	});
+			active: true,
+		});
+	}
 
 	const pastRooms = getRoomsByType("past").map((r) => ({
 		id: r.id,
-		name: r.id,
+		name: r.name || r.id,
 		type: "past" as const,
 		startedAt: r.startedAt,
 	}));
