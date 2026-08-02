@@ -308,8 +308,8 @@ Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for hud
 
 ## 5. Known Issues
 
-### Huddle persistence across restarts (fixed Aug 2)
-Deactivation no longer removes teammates from huddles. `removeFromAllHuddles()` is no longer called from the deactivate endpoint. Offline participants stay in huddle lists, greyed out in the sidebar (`color: #555; opacity: 0.35;`). Only explicit `end_huddle` (Boss action) closes huddles. `removeFromAllHuddles()` still exists in `huddle-helpers.ts` for use by explicit removal actions.
+### Permanent huddle rooms (Aug 2)
+Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- 10 team rooms from Groups section, project rooms from "Active project rooms in Aether" section. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
 
 ### Sidebar blink on mass boot
 When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
@@ -323,8 +323,8 @@ ARCHITECTURE.md (this file) previously used "Facade" (old project name) througho
 ### Database size
 aether.db is ~2.3GB and growing. No retention policy or archival mechanism exists. WAL mode is enabled.
 
-### No ARCHITECTURE.md maintenance
-This file did not exist in usable form until Aug 2, 2026. All prior Aether REQs (300+) were developed without the architectural reference the RUNBOOK requires for B2 blast radius review.
+### SSE activation gap
+Boss sometimes needs to refresh the browser when teammates come online. The `/api/rooms/activate` endpoint fires and SSE emits `huddle_update`, but the sidebar doesn't always pick up the event. Likely cause: EventSource connection may be stale or the browser tab was backgrounded. `visibilitychange` reconnect exists (REQ-140) but may not cover all cases.
 
 ---
 
@@ -338,6 +338,8 @@ This file did not exist in usable form until Aug 2, 2026. All prior Aether REQs 
 - En dash with spaces for dashes. No em dashes.
 - No comments unless explaining a non-obvious decision
 - Room IDs: `direct-{name}-{timestamp}`, `huddle-{host}-{timestamp}`, `work-{host}-{timestamp}`
-- `isHuddleRoom(id)` checks `startsWith("huddle-") || startsWith("work-")`
+- `isHuddleRoom(id)` checks `startsWith("huddle-") || startsWith("work-") || startsWith("fixture-huddle-") || startsWith("fixture-work-")`
+- Sidebar sections: Huddle Rooms, Direct Rooms, Past Sessions
+- Permanent fixtures use sentinel IDs: `fixture-huddle-{host}`, `fixture-work-{project}`
 - Boss and system are exempt from token enforcement
 - Update this file after every shipped REQ (R14)
