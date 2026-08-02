@@ -230,9 +230,7 @@ Tab opens (open-team.sh)
 
 Tab closes (end-session skill or manual)
   → POST /api/rooms/deactivate { name: "chica" }
-  → removeFromAllHuddles("chica")           ← CRITICAL: removes from every huddle
-  →   per huddle: removeFromHuddle()
-  →     if 0 participants remain → setRoomType("past") ← huddle auto-closes
+  → Teammate stays in all huddle participant lists (not removed)
   → setRoomType(directRoom, "past")
   → deactivateTeammate() → removes from /tmp JSON
   → emitEvent({ type: "huddle_update" })
@@ -310,8 +308,8 @@ Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for hud
 
 ## 5. Known Issues
 
-### Huddle auto-close on deactivation
-`removeFromAllHuddles()` in deactivate endpoint removes the teammate from every active huddle. `removeFromHuddle()` auto-ends the huddle when 0 participants remain. During mass restart (auth rotation), sequential deactivation of all participants closes the huddle. Boss reported Gunnar leadership huddle, Onyx work huddle, and Manhattan work huddle all auto-closed during auth restart. Root cause: deactivation path treats huddle membership as tied to session lifecycle, but huddles should persist across restarts.
+### Huddle persistence across restarts (fixed Aug 2)
+Deactivation no longer removes teammates from huddles. `removeFromAllHuddles()` is no longer called from the deactivate endpoint. Offline participants stay in huddle lists, greyed out in the sidebar (`color: #555; opacity: 0.35;`). Only explicit `end_huddle` (Boss action) closes huddles. `removeFromAllHuddles()` still exists in `huddle-helpers.ts` for use by explicit removal actions.
 
 ### Sidebar blink on mass boot
 When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
