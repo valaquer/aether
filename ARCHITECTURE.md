@@ -290,7 +290,7 @@ Touches: Huddle membership (removeFromAllHuddles), room lifecycle, teammate stat
 Touches: Room creation (team + work huddles), participant management, token initialization, auto-wake, dedup guards, ORG.md validation. Changes affect all huddle operations.
 
 ### /api/rooms/+server.ts
-Touches: Sidebar rendering. Reads ORG.md (roster, sidebar groups), janus-config.csv (model labels), alive state. Changes affect what Boss sees in the sidebar.
+Touches: Sidebar rendering. Reads ORG.md (roster, sidebar groups), janus-config.csv (model labels), active-teammates.ts JSON cache (online state). Changes affect what Boss sees in the sidebar. No longer calls `kitten @ ls` directly -- reads the cached JSON file instead.
 
 ### +page.svelte (1537 lines)
 Touches: All client-side rendering -- sidebar, chat panel, activity panel, speed reader, VCR controls, bookmarks, keyboard shortcuts. Changes can introduce visual regressions visible to Boss in real time.
@@ -323,8 +323,8 @@ ARCHITECTURE.md (this file) previously used "Facade" (old project name) througho
 ### Database size
 aether.db is ~2.3GB and growing. No retention policy or archival mechanism exists. WAL mode is enabled.
 
-### SSE activation gap
-Boss sometimes needs to refresh the browser when teammates come online. The `/api/rooms/activate` endpoint fires and SSE emits `huddle_update`, but the sidebar doesn't always pick up the event. Likely cause: EventSource connection may be stale or the browser tab was backgrounded. `visibilitychange` reconnect exists (REQ-140) but may not cover all cases.
+### SSE activation gap (REQ-305 fix shipped)
+Fixed Aug 3. Root cause: three simultaneous failures -- SSE connection going stale (no keepalive, no onerror), sidebar poller hitting `kitten @ ls` timeouts under load, and visibility reconnect not retrying on first failure. Fix: 15s SSE heartbeat, client onerror with exponential backoff, visibility retry at 2s, and `/api/rooms` now reads JSON cache instead of calling `kitten @ ls` on every request. Background reconciler syncs JSON with Kitty every 30s.
 
 ---
 
