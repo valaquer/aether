@@ -581,26 +581,40 @@ import LucideGauge from '~icons/lucide/gauge';
 	}
 
 	let sseTimeout: ReturnType<typeof setTimeout> | undefined;
+	let sseReconnectDelay = 1000;
+	let sseErrorTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function connectEventSource() {
 		eventSource?.close();
 		if (sseTimeout) clearTimeout(sseTimeout);
+		if (sseErrorTimer) clearTimeout(sseErrorTimer);
 		eventSource = new EventSource("/api/events");
 		eventSource.onmessage = handleSSE;
+		eventSource.onerror = () => {
+			if (sseErrorTimer) return;
+			sseErrorTimer = setTimeout(() => {
+				sseErrorTimer = undefined;
+				reconnect();
+				sseReconnectDelay = Math.min(sseReconnectDelay * 2, 30000);
+			}, sseReconnectDelay);
+		};
+		eventSource.onopen = () => {
+			if (sseTimeout) clearTimeout(sseTimeout);
+			sseReconnectDelay = 1000;
+		};
 		sseTimeout = setTimeout(() => {
 			if (eventSource?.readyState !== EventSource.OPEN) {
 				eventSource?.close();
 				eventSource = new EventSource("/api/events");
 				eventSource.onmessage = handleSSE;
+				eventSource.onopen = () => { if (sseTimeout) clearTimeout(sseTimeout); sseReconnectDelay = 1000; };
 				sseTimeout = setTimeout(() => {
 					if (eventSource?.readyState !== EventSource.OPEN) {
 						loadingRoom = "";
 					}
 				}, 5000);
-				eventSource.onopen = () => { if (sseTimeout) clearTimeout(sseTimeout); };
 			}
 		}, 5000);
-		eventSource.onopen = () => { if (sseTimeout) clearTimeout(sseTimeout); };
 	}
 
 	let isReconnecting = false;
@@ -615,16 +629,22 @@ import LucideGauge from '~icons/lucide/gauge';
 			fetch("/api/pulse").then(r => r.json()).then(d => { if (d.pending?.length) { pulsingTeammates = d.pending.map((p: {teammate: string}) => p.teammate); } }).catch(() => {}),
 			fetchActiveAccount(),
 		]).then(() => {
-			// Force room-switch $effect to re-run and load messages
 			prevRoom = "";
 		}).finally(() => {
 			isReconnecting = false;
 		});
 	}
 
+	let visibilityRetry: ReturnType<typeof setTimeout> | undefined;
+
 	function handleVisibilityChange() {
 		if (document.visibilityState === 'visible') {
+			if (visibilityRetry) clearTimeout(visibilityRetry);
 			reconnect();
+			visibilityRetry = setTimeout(() => {
+				visibilityRetry = undefined;
+				loadSidebar();
+			}, 2000);
 		}
 	}
 
@@ -653,6 +673,8 @@ import LucideGauge from '~icons/lucide/gauge';
 	onDestroy(() => {
 		eventSource?.close();
 		if (sseTimeout) clearTimeout(sseTimeout);
+		if (sseErrorTimer) clearTimeout(sseErrorTimer);
+		if (visibilityRetry) clearTimeout(visibilityRetry);
 		if (roomSwitchTimer) clearTimeout(roomSwitchTimer);
 		if (pulsePoller) clearInterval(pulsePoller);
 		if (sidebarPoller) clearInterval(sidebarPoller);

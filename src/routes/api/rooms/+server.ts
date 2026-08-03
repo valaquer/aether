@@ -1,6 +1,6 @@
 import type { RequestHandler } from "./$types";
 import { getRoomsByType, getAllRooms, getHuddleMembers, resolveActiveRoom, getRoom } from "$lib/server/aether-db";
-import { getAliveTeammates } from "$lib/server/kitten";
+import { getActiveTeammatesSet } from "$lib/server/active-teammates";
 import fs from "fs";
 
 const CSV_PATH =
@@ -109,7 +109,7 @@ function loadSidebarGroups(): { label: string; members: string[] }[] {
 export const GET: RequestHandler = async () => {
 	const modelMap = loadModelMap();
 	const roster = loadRoster();
-	const alive = await getAliveTeammates();
+	const alive = getActiveTeammatesSet();
 	const activeRooms = getAllRooms().filter((r) => r.type === "teammate");
 	const roomByName: Record<string, string> = {};
 	for (const r of activeRooms) {

@@ -1,6 +1,8 @@
 import fs from "fs";
+import { getAliveTeammates } from "./kitten";
 
 const ACTIVE_FILE = "/tmp/aether-active-teammates.json";
+const RECONCILE_INTERVAL = 30000;
 
 interface ActiveState {
 	[teammate: string]: {
@@ -36,3 +38,32 @@ export function deactivateTeammate(name: string): void {
 export function getActiveTeammates(): string[] {
 	return Object.keys(readActive());
 }
+
+export function getActiveTeammatesSet(): Set<string> {
+	return new Set(Object.keys(readActive()));
+}
+
+async function reconcileWithKitty(): Promise<void> {
+	try {
+		const kittyAlive = await getAliveTeammates();
+		const jsonActive = readActive();
+		const jsonNames = new Set(Object.keys(jsonActive));
+		let changed = false;
+		for (const name of kittyAlive) {
+			if (!jsonNames.has(name)) {
+				jsonActive[name] = { activatedAt: new Date().toISOString() };
+				changed = true;
+			}
+		}
+		for (const name of jsonNames) {
+			if (!kittyAlive.has(name)) {
+				delete jsonActive[name];
+				changed = true;
+			}
+		}
+		if (changed) writeActive(jsonActive);
+	} catch {}
+}
+
+if (globalThis.__reconcileTimer) clearInterval(globalThis.__reconcileTimer);
+globalThis.__reconcileTimer = setInterval(reconcileWithKitty, RECONCILE_INTERVAL);

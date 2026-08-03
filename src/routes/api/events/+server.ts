@@ -6,16 +6,16 @@ export const GET: RequestHandler = async ({ request }) => {
 		start(controller) {
 			const encoder = new TextEncoder();
 			let closed = false;
+			let heartbeat: ReturnType<typeof setInterval> | undefined;
 
 			function cleanup() {
 				if (closed) return;
 				closed = true;
+				if (heartbeat) clearInterval(heartbeat);
 				unsubscribe();
 				try {
 					controller.close();
-				} catch {
-					// already closed
-				}
+				} catch {}
 			}
 
 			function safeEnqueue(data: string) {
@@ -35,6 +35,10 @@ export const GET: RequestHandler = async ({ request }) => {
 			});
 
 			safeEnqueue(`data: ${JSON.stringify({ type: "connected" })}\n\n`);
+
+			heartbeat = setInterval(() => {
+				safeEnqueue(`: keepalive\n\n`);
+			}, 15000);
 
 			request.signal.addEventListener("abort", cleanup);
 		},
