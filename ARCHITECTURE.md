@@ -309,7 +309,10 @@ Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for hud
 ## 5. Known Issues
 
 ### Permanent huddle rooms (Aug 2, updated Aug 4)
-Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms from Groups section (filtered to real teammates via Roster), project rooms from "Active project rooms in Aether" section. Virtual hosts (e.g. xl for leadership launches) are excluded -- they exist for open-team.sh but are not real teammates. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
+Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms from Groups section (filtered to real teammates via Roster), project rooms from "Active project rooms in Aether" section. Virtual hosts (e.g. xl for leadership launches) and solo operators (no team members) are excluded -- solo operators are reached via their direct rooms. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
+
+### Cross-huddle routing notice (REQ-307)
+When a non-participant posts to a huddle, the message is prepended with a routing notice pointing recipients to where they can reply. The code scans active huddle rooms for the sender (prefers work huddles). Fallback for senders not in any huddle: `direct-{sender}`.
 
 ### Sidebar blink on mass boot
 When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
