@@ -287,7 +287,7 @@ Touches: Message storage, huddle fan-out, token enforcement, cross-huddle routin
 Touches: Huddle membership (removeFromAllHuddles), room lifecycle, teammate state, process cleanup. Changes affect what happens when ANY teammate session ends.
 
 ### /api/huddle/+server.ts
-Touches: Room creation (team + work huddles), participant management, token initialization, auto-wake, dedup guards, ORG.md validation. Changes affect all huddle operations.
+Touches: Room creation (team + work huddles), participant management, token initialization, auto-wake, dedup guards, ORG.md validation. Changes affect all huddle operations. Work huddle constraints: one per project (dedup by `originalRoomId`). Leaders can host multiple project huddles simultaneously (REQ-308). Non-leaders are blocked from multiple huddles.
 
 ### /api/rooms/+server.ts
 Touches: Sidebar rendering. Reads ORG.md (roster, sidebar groups), janus-config.csv (model labels), active-teammates.ts JSON cache (online state). Changes affect what Boss sees in the sidebar. No longer calls `kitten @ ls` directly -- reads the cached JSON file instead.
