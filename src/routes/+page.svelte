@@ -747,8 +747,16 @@ import LucideGauge from '~icons/lucide/gauge';
 						messageQueues[room] = queued;
 						messageQueues = messageQueues;
 					} else {
-						conversations[room] = parsed;
+						const queued = messageQueues[room] ?? [];
+						conversations[room] = queued.length > 0 ? [...parsed, ...queued] : parsed;
 						conversations = conversations;
+						if (queued.length > 0) {
+							messageQueues[room] = [];
+							messageQueues = messageQueues;
+							delete queuedMessageIds[room];
+							queuedMessageIds = queuedMessageIds;
+							localStorage.setItem('aether-queued-ids', JSON.stringify(queuedMessageIds));
+						}
 					}
 					loadingRoom = "";
 					// Restore rewind position if one was saved for this room

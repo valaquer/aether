@@ -326,6 +326,9 @@ aether.db is ~2.3GB and growing. No retention policy or archival mechanism exist
 ### SSE activation gap (REQ-305 fix shipped)
 Fixed Aug 3. Root cause: three simultaneous failures -- SSE connection going stale (no keepalive, no onerror), sidebar poller hitting `kitten @ ls` timeouts under load, and visibility reconnect not retrying on first failure. Fix: 15s SSE heartbeat, client onerror with exponential backoff, visibility retry at 2s, and `/api/rooms` now reads JSON cache instead of calling `kitten @ ls` on every request. Background reconciler syncs JSON with Kitty every 30s.
 
+### Queue flush on room load (REQ-306 fix shipped)
+Fixed Aug 4. Messages arriving via SSE while room data is being fetched (`loadingRoom` truthy) were queued in `messageQueues` but never flushed for non-paused rooms when the fetch completed. Result: ghost "1" in forward counter. Fix: after room load completes, flush any queued messages by appending them to the fetched conversation data, and clear the queue from memory and localStorage.
+
 ---
 
 ## Conventions
