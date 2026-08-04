@@ -308,8 +308,8 @@ Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for hud
 
 ## 5. Known Issues
 
-### Permanent huddle rooms (Aug 2)
-Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- 10 team rooms from Groups section, project rooms from "Active project rooms in Aether" section. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
+### Permanent huddle rooms (Aug 2, updated Aug 4)
+Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms from Groups section (filtered to real teammates via Roster), project rooms from "Active project rooms in Aether" section. Virtual hosts (e.g. xl for leadership launches) are excluded -- they exist for open-team.sh but are not real teammates. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
 
 ### Sidebar blink on mass boot
 When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
