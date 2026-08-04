@@ -3,12 +3,15 @@ import { getAliveTeammates } from "./kitten";
 
 const ACTIVE_FILE = "/tmp/aether-active-teammates.json";
 const RECONCILE_INTERVAL = 30000;
+const CLEANUP_TIMEOUT = 60000;
 
 interface ActiveState {
 	[teammate: string]: {
 		activatedAt: string;
 	};
 }
+
+if (!globalThis.__pendingCleanup) globalThis.__pendingCleanup = new Set<string>();
 
 function readActive(): ActiveState {
 	try {
@@ -30,9 +33,16 @@ export function activateTeammate(name: string): void {
 }
 
 export function deactivateTeammate(name: string): void {
+	const key = name.toLowerCase();
 	const state = readActive();
-	delete state[name.toLowerCase()];
+	delete state[key];
 	writeActive(state);
+	globalThis.__pendingCleanup.add(key);
+	setTimeout(() => { globalThis.__pendingCleanup.delete(key); }, CLEANUP_TIMEOUT);
+}
+
+export function clearPendingCleanup(name: string): void {
+	globalThis.__pendingCleanup.delete(name.toLowerCase());
 }
 
 export function getActiveTeammates(): string[] {
@@ -50,7 +60,7 @@ async function reconcileWithKitty(): Promise<void> {
 		const jsonNames = new Set(Object.keys(jsonActive));
 		let changed = false;
 		for (const name of kittyAlive) {
-			if (!jsonNames.has(name)) {
+			if (!jsonNames.has(name) && !globalThis.__pendingCleanup.has(name)) {
 				jsonActive[name] = { activatedAt: new Date().toISOString() };
 				changed = true;
 			}

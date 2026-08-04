@@ -1,6 +1,6 @@
 import type { RequestHandler } from "./$types";
 import { resolveActiveRoom, setRoomType } from "$lib/server/aether-db";
-import { deactivateTeammate } from "$lib/server/active-teammates";
+import { deactivateTeammate, clearPendingCleanup } from "$lib/server/active-teammates";
 import { emitEvent } from "$lib/server/events";
 import { cleanupMiniAndMaybeCloseTab } from "$lib/server/kitten";
 import { appendFileSync } from "fs";
@@ -37,8 +37,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		try {
 			const result = await cleanupMiniAndMaybeCloseTab(teammate);
 			log(`${teammate} cleanup=${JSON.stringify(result)}`);
+			clearPendingCleanup(teammate);
 		} catch (err) {
 			log(`${teammate} cleanup FAILED: ${err instanceof Error ? err.message : String(err)}`);
+			clearPendingCleanup(teammate);
 		}
 	}, 2000);
 
