@@ -149,6 +149,7 @@ export const GET: RequestHandler = async () => {
 	}[] = [];
 
 	for (const fixture of teamHuddleFixtures) {
+		if (!roster.includes(fixture.host)) continue;
 		const activeId = resolveActiveRoom(`huddle-${fixture.host}`);
 		if (activeId) {
 			activeHuddleRoomIds.add(activeId);
