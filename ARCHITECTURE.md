@@ -226,6 +226,7 @@ Tab opens (open-team.sh)
   → POST /api/rooms/activate { name: "chica" }
   → saveRoom({ id: "direct-chica-{ts}", type: "teammate" })
   → activateTeammate() → /tmp/aether-active-teammates.json
+  → Auto-rejoin: scan all active huddles for membership → "{teammate} is back." system message + Kitty fan-out to each
   → emitEvent({ type: "huddle_update" }) → sidebar refresh
 
 Tab closes (end-session skill or manual)
