@@ -118,12 +118,6 @@ export const POST: RequestHandler = async ({ request }) => {
 				return new Response(JSON.stringify({ roomId: existingForProject, existing: true, project: canonicalProject }), { headers: { "Content-Type": "application/json" } });
 			}
 
-			const activeWorkHuddles = getAllRooms().filter(r => r.type === "huddle" && r.id.startsWith("work-"));
-			const hostHasWork = activeWorkHuddles.some(r => r.id.startsWith(`work-${host}-`));
-			if (hostHasWork) {
-				return new Response(JSON.stringify({ error: `${host} already hosts an active work huddle. End it first.` }), { status: 400 });
-			}
-
 			const leaders = loadTeamLeaders();
 			if (!leaders.includes(host)) {
 				const hostHasTeam = resolveActiveRoom(`huddle-${host}`);
