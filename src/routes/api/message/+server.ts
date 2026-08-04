@@ -182,7 +182,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					if (!senderHuddle) senderHuddle = h.id;
 				}
 			}
-			const target = senderHuddle || "their own huddle";
+			const target = senderHuddle || `direct-${sender}`;
 			body = `_This message is arriving from a different huddle. To reply, message the sender in ${target} instead of merely posting it in your own._\n\n${body}`;
 		}
 	}
