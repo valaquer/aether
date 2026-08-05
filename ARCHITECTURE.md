@@ -310,7 +310,7 @@ Called by: kitten.ts:launchTeammate(). Changes affect auto-wake behavior for hud
 ## 5. Known Issues
 
 ### Permanent huddle rooms (Aug 2, updated Aug 4)
-Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms from Groups section (filtered to real teammates via Roster), project rooms from "Active project rooms in Aether" section. Virtual hosts (e.g. xl for leadership launches) and solo operators (no team members) are excluded -- solo operators are reached via their direct rooms. The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
+Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms from Groups section (filtered to real teammates via Roster), project rooms from "Active project rooms in Aether" section. Virtual hosts (e.g. xl for leadership launches) are excluded. Gunnar has a solo group entry `gunnar (host: gunnar)` for the Strategy/leadership huddle fixture (REQ-310). The rooms API merges ORG.md fixtures with active DB rooms via `resolveActiveRoom()`. Active sessions use their DB room ID; inactive fixtures use sentinel IDs (`fixture-huddle-{host}`, `fixture-work-{project}`). Archive moves session messages to Past Sessions but the fixture stays. Deactivation no longer removes teammates from huddles -- offline participants stay greyed out.
 
 ### Cross-huddle routing notice (REQ-307)
 When a non-participant posts to a huddle, the message is prepended with a routing notice pointing recipients to where they can reply. The code scans active huddle rooms for the sender (prefers work huddles). Fallback for senders not in any huddle: `direct-{sender}`.
@@ -329,6 +329,9 @@ aether.db is ~2.3GB and growing. No retention policy or archival mechanism exist
 
 ### SSE activation gap (REQ-305 fix shipped)
 Fixed Aug 3. Root cause: three simultaneous failures -- SSE connection going stale (no keepalive, no onerror), sidebar poller hitting `kitten @ ls` timeouts under load, and visibility reconnect not retrying on first failure. Fix: 15s SSE heartbeat, client onerror with exponential backoff, visibility retry at 2s, and `/api/rooms` now reads JSON cache instead of calling `kitten @ ls` on every request. Background reconciler syncs JSON with Kitty every 30s.
+
+### Reconciler race guard (REQ-310 fix shipped)
+Fixed Aug 4. Root cause: 30s reconciler in active-teammates.ts could re-add a teammate to the active JSON between deactivation (immediate) and tab cleanup (2s delay). Teammate would flicker back online. Fix: `globalThis.__pendingCleanup` Set -- deactivate adds name, reconciler skips names in set, cleanup callback removes name. 60s auto-clear timeout as safety net.
 
 ### Queue flush on room load (REQ-306 fix shipped)
 Fixed Aug 4. Messages arriving via SSE while room data is being fetched (`loadingRoom` truthy) were queued in `messageQueues` but never flushed for non-paused rooms when the fetch completed. Result: ghost "1" in forward counter. Fix: after room load completes, flush any queued messages by appending them to the fetched conversation data, and clear the queue from memory and localStorage.
