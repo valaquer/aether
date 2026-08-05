@@ -162,7 +162,7 @@ export function clearAllHoustonAlerts(): void {
 
 const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
 
-function readEngineeringGroup(): string[] {
+function readOpsGroup(): string[] {
 	try {
 		const raw = fs.readFileSync(ORG_PATH, "utf-8");
 		let inSection = false;
@@ -172,15 +172,16 @@ function readEngineeringGroup(): string[] {
 			if (!inSection || !line.includes(":")) continue;
 			const colonIdx = line.indexOf(":");
 			const label = line.slice(0, colonIdx).trim();
-			if (label === "Engineering") {
+			if (label === "Ops") {
 				return line.slice(colonIdx + 1).split(",").map(m => m.trim().toLowerCase()).filter(Boolean);
 			}
 		}
+		console.warn("[HOUSTON] 'Ops' label not found in ORG.md Sidebar Order -- using fallback");
 	} catch {}
-	return ["guru", "daksh", "ines"];
+	return ["rio", "chica", "natalie"];
 }
 
-export { readEngineeringGroup };
+export { readOpsGroup };
 
 export function getHarnessState(key: string): string | null {
 	initDb();

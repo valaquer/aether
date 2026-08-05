@@ -1,5 +1,5 @@
 import type { RequestHandler } from "./$types";
-import { getActiveHoustonAlerts, createHoustonAlert, clearAllHoustonAlerts, saveMessage, readEngineeringGroup } from "$lib/server/aether-db";
+import { getActiveHoustonAlerts, createHoustonAlert, clearAllHoustonAlerts, saveMessage, readOpsGroup } from "$lib/server/aether-db";
 import { resolveActiveRoom } from "$lib/server/aether-db";
 import { emitEvent } from "$lib/server/events";
 import { exec } from "child_process";
@@ -25,8 +25,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const isRecovery = type === "recovery";
 
-	const members = readEngineeringGroup();
-	const leader = members[0] || "guru";
+	const members = readOpsGroup();
+	const leader = members[0] || "rio";
 
 	// Use standard huddle API — creates session-scoped room, handles dedup, auto-wake
 	let roomId: string;
@@ -69,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		startTriageTimer(roomId, vendor, message);
 	}
 
-	// Wake Guru's team huddle + send autonomous triage nudge
+	// Wake OPS team + send autonomous triage nudge
 	exec(`bash ${OPEN_TEAM_SCRIPT} ${leader}`, { timeout: 60000 }, () => {
 		const nudge = `HOUSTON ALERT — ${vendor.toUpperCase()}: ${message} (${new Date().toISOString()}). You are authorized for autonomous triage per runbook-houston-triage Section 0 — do not wait for Boss. Read the watchtower log (${roomId}), run Triage Path A independently, post your findings there. Act on pre-authorized responses only; anything beyond the RUNBOOK: investigate, document, hold. If blocked on Boss or user impact confirmed: POST to /api/houston-escalate with reason and message.`;
 		setTimeout(() => {

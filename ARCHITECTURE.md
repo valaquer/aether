@@ -168,6 +168,7 @@ ORG.md (library/wiki/Organization/ORG.md)
   Read by: /api/rooms (sidebar groups, roster, permanent team huddle rooms from Groups, permanent project rooms from "Active project rooms in Aether")
            /api/huddle (project validation, team leader list)
            /api/message (cross-huddle routing -- sender's team host lookup)
+           aether-db.ts:readOpsGroup() (Houston watchtower participants from Sidebar Order "Ops" label)
 
 janus-config.csv (library/scripts/janus-config.csv)
   Read by: /api/rooms (model labels in sidebar)
