@@ -338,7 +338,13 @@ Fixed Aug 4. Root cause: 30s reconciler in active-teammates.ts could re-add a te
 Fixed Aug 4. Messages arriving via SSE while room data is being fetched (`loadingRoom` truthy) were queued in `messageQueues` but never flushed for non-paused rooms when the fetch completed. Result: ghost "1" in forward counter. Fix: after room load completes, flush any queued messages by appending them to the fetched conversation data, and clear the queue from memory and localStorage.
 
 ### Duplicate "is back" notifications (REQ-313 fix shipped)
-Fixed Aug 7. Root cause: open-team.sh (line 70) and mini-launch.sh (line 45) both call POST /api/rooms/activate within ~240ms. The `activateTeammate()` call was guarded by `if (!prevActive.includes(teammate))` but the auto-rejoin notification loop ran unconditionally. Second call fired duplicate "is back" messages. Fix: moved the notification block inside the existing prevActive guard. The duplicate activate call itself remains but is harmless.
+Fixed Aug 7. Root cause: open-team.sh (line 70) and mini-launch.sh (line 45) both call POST /api/rooms/activate within ~240ms. The `activateTeammate()` call was guarded by `if (!prevActive.includes(teammate))` but the auto-rejoin notification loop ran unconditionally. Second call fired duplicate "is back" messages. Fix: moved the notification block inside the existing prevActive guard. The duplicate activate call removed in OPS-scripts REQ-2.
+
+### Work huddle room ID collision (REQ-314 fix shipped)
+Fixed Aug 7. Root cause: `formatTimestamp()` used per-second resolution (`YYYYmmdd-HHmmss`). Two work huddles created by the same host in the same second got identical room IDs (`work-kirby-20260807-171652`). Fix: added milliseconds to `formatTimestamp()` -- now returns `YYYYmmdd-HHmmssMMM`. Discovered via diagnostic query after OPS read access was granted (OPS-scripts REQ-3).
+
+### Project huddles interleaved with team huddles (REQ-315 fix shipped)
+Fixed Aug 7. Root cause: active project huddles used the host's `hostGroupIdx` (e.g. Kirby's Marketing group position), causing the client-side sort (`.sort((a, b) => a.hostGroupIdx - b.hostGroupIdx)` in +page.svelte) to interleave them with team huddles. Inactive project fixtures used `sidebarGroups.length` and sorted correctly at the bottom. Fix: active project huddles now also use `sidebarGroups.length` as `hostGroupIdx`. Natalie B5.5 identified the client-side sort override that made the original server-side sort plan ineffective.
 
 ---
 
