@@ -188,7 +188,7 @@ export const GET: RequestHandler = async () => {
 				name: key,
 				host: parseDisplayName(activeId),
 				hostGroup: memberToGroup[parseDisplayName(activeId)]?.label || "",
-				hostGroupIdx: memberToGroup[parseDisplayName(activeId)]?.idx ?? sidebarGroups.length,
+				hostGroupIdx: sidebarGroups.length,
 				participants: getHuddleMembers(activeId),
 				startedAt: room?.startedAt,
 				project: room?.name || project,
