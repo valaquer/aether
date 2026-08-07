@@ -29,20 +29,20 @@ export const POST: RequestHandler = async ({ request }) => {
 	const prevActive = getActiveTeammates();
 	if (!prevActive.includes(teammate)) {
 		activateTeammate(teammate);
-	}
 
-	const activeHuddles = getAllRooms().filter(r => r.type === "huddle");
-	for (const huddle of activeHuddles) {
-		const members = getHuddleMembers(huddle.id);
-		if (members.some((m: string) => m.toLowerCase() === teammate)) {
-			const notification = `${teammate} is back.`;
-			const createdAt = new Date().toISOString();
-			const msg = { id: v4(), conversationId: huddle.id, sender: "system", content: notification, createdAt, type: "message" };
-			saveMessage(msg);
-			emitEvent({ type: "message", id: msg.id, conversationId: huddle.id, sender: "system", content: notification, timestamp: createdAt });
-			for (const m of members) {
-				if (m.toLowerCase() !== teammate) {
-					sendToKitty(m, { sender: "system", room: huddle.id, body: notification, timestamp: createdAt }).catch(() => {});
+		const activeHuddles = getAllRooms().filter(r => r.type === "huddle");
+		for (const huddle of activeHuddles) {
+			const members = getHuddleMembers(huddle.id);
+			if (members.some((m: string) => m.toLowerCase() === teammate)) {
+				const notification = `${teammate} is back.`;
+				const createdAt = new Date().toISOString();
+				const msg = { id: v4(), conversationId: huddle.id, sender: "system", content: notification, createdAt, type: "message" };
+				saveMessage(msg);
+				emitEvent({ type: "message", id: msg.id, conversationId: huddle.id, sender: "system", content: notification, timestamp: createdAt });
+				for (const m of members) {
+					if (m.toLowerCase() !== teammate) {
+						sendToKitty(m, { sender: "system", room: huddle.id, body: notification, timestamp: createdAt }).catch(() => {});
+					}
 				}
 			}
 		}
