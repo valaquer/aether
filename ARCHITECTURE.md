@@ -343,7 +343,8 @@ Fixed Aug 4. Messages arriving via SSE while room data is being fetched (`loadin
 
 - Svelte 5 runes ($state, $effect, $props, $derived) -- no legacy Svelte 4 patterns
 - TailwindCSS v3 for styling
-- JetBrains Mono, weight 300, 12px, line-height 1.8
+- JetBrains Mono, weight 300, 12px, line-height 1.8 (UI font)
+- Print system uses Courier New (system font) via pandoc + xelatex -- user-installed fonts are not resolvable from Vite child processes
 - Foundation.css shared with Bavaria, Ember, Wiki apps (symlinked into src/lib/)
 - Sidebar CSS shared via sidebar.css (symlinked)
 - En dash with spaces for dashes. No em dashes.
