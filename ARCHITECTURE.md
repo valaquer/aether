@@ -223,12 +223,12 @@ start_huddle MCP tool
 ### Teammate Activation/Deactivation
 
 ```
-Tab opens (open-team.sh)
+Tab opens (open-team.sh + mini-launch.sh both call activate)
   → POST /api/rooms/activate { name: "chica" }
-  → saveRoom({ id: "direct-chica-{ts}", type: "teammate" })
-  → activateTeammate() → /tmp/aether-active-teammates.json
-  → Auto-rejoin: scan all active huddles for membership → "{teammate} is back." system message + Kitty fan-out to each
-  → emitEvent({ type: "huddle_update" }) → sidebar refresh
+  → saveRoom({ id: "direct-chica-{ts}", type: "teammate" }) — guarded by resolveActiveRoom
+  → activateTeammate() → /tmp/aether-active-teammates.json — guarded by prevActive check
+  → Auto-rejoin (inside prevActive guard): scan all active huddles for membership → "{teammate} is back." system message + Kitty fan-out to each
+  → emitEvent({ type: "huddle_update" }) → sidebar refresh (outside guard, idempotent)
 
 Tab closes (end-session skill or manual)
   → POST /api/rooms/deactivate { name: "chica" }
@@ -336,6 +336,9 @@ Fixed Aug 4. Root cause: 30s reconciler in active-teammates.ts could re-add a te
 
 ### Queue flush on room load (REQ-306 fix shipped)
 Fixed Aug 4. Messages arriving via SSE while room data is being fetched (`loadingRoom` truthy) were queued in `messageQueues` but never flushed for non-paused rooms when the fetch completed. Result: ghost "1" in forward counter. Fix: after room load completes, flush any queued messages by appending them to the fetched conversation data, and clear the queue from memory and localStorage.
+
+### Duplicate "is back" notifications (REQ-313 fix shipped)
+Fixed Aug 7. Root cause: open-team.sh (line 70) and mini-launch.sh (line 45) both call POST /api/rooms/activate within ~240ms. The `activateTeammate()` call was guarded by `if (!prevActive.includes(teammate))` but the auto-rejoin notification loop ran unconditionally. Second call fired duplicate "is back" messages. Fix: moved the notification block inside the existing prevActive guard. The duplicate activate call itself remains but is harmless.
 
 ---
 
