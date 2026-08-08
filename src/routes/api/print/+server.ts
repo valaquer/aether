@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return new Response(JSON.stringify({ error: "No messages found" }), { status: 404 });
 	}
 
-	const roomLabel = roomId.replace(/-\d{8}-\d{6}$/, "");
+	const roomLabel = roomId.replace(/-\d{8}-\d{6,9}$/, "");
 	const now = new Date();
 	const dateStr = now.toISOString().slice(0, 10);
 	const timeStr = now.toTimeString().slice(0, 5).replace(":", "");

@@ -71,7 +71,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 			if (!roomExists(resolvedRoom)) {
 				const ts = formatTimestamp(new Date());
-				const name = resolvedRoom.replace("direct-", "");
+				const nameExtract = resolvedRoom.match(/^direct-([a-z]+)/);
+				const name = nameExtract ? nameExtract[1] : resolvedRoom.replace("direct-", "");
 				resolvedRoom = `direct-${name}-${ts}`;
 				saveRoom({
 					id: resolvedRoom,
@@ -259,7 +260,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	} else {
 		// Deliver to the room owner's Kitty tab, unless the sender owns the room
-		const nameMatch = resolvedRoom.match(/^direct-(.+?)-\d{8}-\d{6}$/);
+		const nameMatch = resolvedRoom.match(/^direct-([a-z]+)-\d{8}-\d{6}/);
 		const targetTeammate = (
 			nameMatch ? nameMatch[1] : resolvedRoom.replace(/^direct-/, "")
 		).toLowerCase();

@@ -358,7 +358,7 @@ Fixed Aug 7. Root cause: active project huddles used the host's `hostGroupIdx` (
 - Sidebar CSS shared via sidebar.css (symlinked)
 - En dash with spaces for dashes. No em dashes.
 - No comments unless explaining a non-obvious decision
-- Room IDs: `direct-{name}-{timestamp}`, `huddle-{host}-{timestamp}`, `work-{host}-{timestamp}`. Timestamps include milliseconds (`YYYYmmdd-HHmmssMMM`) since REQ-314. Double-timestamp IDs exist in production (REQ-226 family). Both `parseDisplayName` (server) and `formatPastRoom` (client) use `[a-z]+` for name extraction, immune to timestamp variations.
+- Room IDs: `direct-{name}-{timestamp}`, `huddle-{host}-{timestamp}`, `work-{host}-{timestamp}`. Timestamps include milliseconds (`YYYYmmdd-HHmmssMMM`) since REQ-314. All name extraction uses `[a-z]+` pattern: `parseDisplayName` (server rooms API), `formatPastRoom` (client sidebar), message handler fallback room creation (line 74), and Kitty delivery target (line 263). Legacy double-timestamp IDs may exist in DB but new ones are prevented (REQ-317).
 - `isHuddleRoom(id)` checks `startsWith("huddle-") || startsWith("work-") || startsWith("fixture-huddle-") || startsWith("fixture-work-")`
 - Sidebar sections: Huddle Rooms, Direct Rooms, Past Sessions
 - Permanent fixtures use sentinel IDs: `fixture-huddle-{host}`, `fixture-work-{project}`
