@@ -71,20 +71,20 @@ import LucideGauge from '~icons/lucide/gauge';
 
 	function formatPastRoom(name: string): { label: string; date: string } {
 		const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-		// direct-{name}-{YYYYMMDD}-{HHMMSS}
-		const directMatch = name.match(/^direct-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
+		// direct-{name}-{YYYYMMDD}-{HHMMSSmmm}
+		const directMatch = name.match(/^direct-([a-z]+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}\d{0,3}/);
 		if (directMatch) {
 			const [, n, y, mo, d, h, mi] = directMatch;
 			return { label: n, date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
-		// work-{host}-{YYYYMMDD}-{HHMMSS}
-		const workMatch = name.match(/^work-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
+		// work-{host}-{YYYYMMDD}-{HHMMSSmmm}
+		const workMatch = name.match(/^work-([a-z]+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}\d{0,3}/);
 		if (workMatch) {
 			const [, host, y, mo, d, h, mi] = workMatch;
 			return { label: host + "'s work huddle", date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
 		}
-		// huddle-{host}-{YYYYMMDD}-{HHMMSS}
-		const huddleMatch = name.match(/^huddle-(.+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}$/);
+		// huddle-{host}-{YYYYMMDD}-{HHMMSSmmm}
+		const huddleMatch = name.match(/^huddle-([a-z]+)-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}\d{0,3}/);
 		if (huddleMatch) {
 			const [, host, y, mo, d, h, mi] = huddleMatch;
 			return { label: host + "'s huddle", date: `${parseInt(d)}/${parseInt(mo)} ${h}${mi}h` };
