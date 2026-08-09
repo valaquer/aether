@@ -1,6 +1,6 @@
 import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
-import { saveMessage, getActiveRoomsForTeammate } from "$lib/server/aether-db";
+import { saveMessage, getActiveRoomsForTeammate, getHuddleMembers } from "$lib/server/aether-db";
 import { sendToKitty } from "$lib/server/kitten";
 import { v4 } from "uuid";
 import fs from "fs";
@@ -101,13 +101,24 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	// Fan-out tool activity to group members' Kitty tabs (live mirror)
+	// Fan-out tool activity to group members + co-huddle participants' Kitty tabs (live mirror)
 	if (isToolCall && !isResponse) {
 		const groupMembers = getGroupMembers(sender);
-		if (groupMembers.length > 0) {
+		const coHuddleMembers: string[] = [];
+		for (const roomId of activeRooms) {
+			if (roomId.startsWith("huddle-") || roomId.startsWith("work-")) {
+				for (const m of getHuddleMembers(roomId)) {
+					if (m !== sender && !groupMembers.includes(m) && !coHuddleMembers.includes(m)) {
+						coHuddleMembers.push(m);
+					}
+				}
+			}
+		}
+		const allRecipients = [...groupMembers, ...coHuddleMembers];
+		if (allRecipients.length > 0) {
 			const input = typeof data.toolInput === "string" ? data.toolInput : JSON.stringify(data.toolInput || "");
 			const label = data.summary || `[live-mirror] ${data.toolName}: ${input.substring(0, 200)}`;
-			for (const m of groupMembers) {
+			for (const m of allRecipients) {
 				sendToKitty(m, { sender, room: `direct-${sender}`, body: label, timestamp: createdAt }).catch(() => {});
 			}
 		}
