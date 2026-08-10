@@ -72,7 +72,7 @@ export class Database {
 			await this.initDatabase();
 		} catch (err) {
 			logger.error(err, "Error connecting to database");
-			process.exit(1);
+			throw err;
 		}
 
 		// Disconnect DB on exit
@@ -368,8 +368,13 @@ export let collections: ReturnType<typeof Database.prototype.getCollections>;
 
 export const ready = (async () => {
 	if (!building) {
-		const db = await Database.getInstance();
-		collections = db.getCollections();
+		try {
+			const db = await Database.getInstance();
+			collections = db.getCollections();
+		} catch (err) {
+			logger.warn("MongoDB initialization failed -- running without it (Aether uses SQLite)");
+			collections = {} as unknown as ReturnType<typeof Database.prototype.getCollections>;
+		}
 	} else {
 		collections = {} as unknown as ReturnType<typeof Database.prototype.getCollections>;
 	}
