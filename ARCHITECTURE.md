@@ -21,7 +21,7 @@ library/aether-app/                    # App codebase (git: valaquer/aether)
 │   │   │   ├── events.ts             # EventEmitter wrapper for SSE push
 │   │   │   ├── huddle-helpers.ts      # endHuddle, removeFromHuddle, removeFromAllHuddles
 │   │   │   ├── token-helpers.ts       # Huddle token triage, timeout, fan-out
-│   │   │   ├── kitten.ts             # Kitty socket discovery, sendToKitty, process cleanup
+│   │   │   ├── kitten.ts             # Kitty socket discovery, sendToKitty, process cleanup. getAliveTeammates() returns Set|null (null = check failed)
 │   │   │   ├── houston-state.ts       # Houston alert state (in-memory)
 │   │   │   ├── houston-triage.ts      # 10-min triage timeout timer
 │   │   │   ├── config.ts             # App configuration
@@ -345,6 +345,9 @@ Fixed Aug 7. Root cause: open-team.sh (line 70) and mini-launch.sh (line 45) bot
 
 ### Work huddle room ID collision (REQ-314 fix shipped)
 Fixed Aug 7. Root cause: `formatTimestamp()` used per-second resolution (`YYYYmmdd-HHmmss`). Two work huddles created by the same host in the same second got identical room IDs (`work-kirby-20260807-171652`). Fix: added milliseconds to `formatTimestamp()` -- now returns `YYYYmmdd-HHmmssMMM`. Discovered via diagnostic query after OPS read access was granted (OPS-scripts REQ-3).
+
+### Alive cache roster wipe on failed check (REQ-323 fix shipped)
+Fixed Aug 10. Root cause: `getAliveTeammates()` returned an empty Set when the Kitty socket wasn't found or the `kitten @ ls` command failed. The 30s reconciler treated empty as "nobody alive" and wiped all teammates from the JSON cache, causing offline flashing in the sidebar. Fix: `getAliveTeammates()` now returns `null` on failure (socket not found or command error) vs empty Set (no tabs). `reconcileWithKitty()` skips when null -- "don't know" is not "nobody."
 
 ### Project huddles interleaved with team huddles (REQ-315 fix shipped)
 Fixed Aug 7. Root cause: active project huddles used the host's `hostGroupIdx` (e.g. Kirby's Marketing group position), causing the client-side sort (`.sort((a, b) => a.hostGroupIdx - b.hostGroupIdx)` in +page.svelte) to interleave them with team huddles. Inactive project fixtures used `sidebarGroups.length` and sorted correctly at the bottom. Fix: active project huddles now also use `sidebarGroups.length` as `hostGroupIdx`. Natalie B5.5 identified the client-side sort override that made the original server-side sort plan ineffective.
