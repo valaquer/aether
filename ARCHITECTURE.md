@@ -201,7 +201,7 @@ Teammate A's Claude Code session
   → Server: resolveActiveRoom("direct-b") → "direct-b-20260802-095500"
   → Token check (huddle rooms only): getTokenHolder() must match sender
   → Cross-huddle notice prepend (if sender not a participant)
-  → saveMessage() → SQLite messages table
+  → saveMessage() → SQLite messages table (composite index on conversationId+createdAt, REQ-322)
   → emitEvent({ type: "message" }) → SSE stream → browser UI updates
   → Fan-out: sendToKitty("b", payload) → kitten send-text to Kitty tab
   → Teammate B's Claude Code receives text as stdin input
@@ -315,6 +315,9 @@ Huddle rooms are permanent sidebar fixtures sourced from ORG.md -- team rooms fr
 
 ### Cross-huddle routing notice (REQ-307)
 When a non-participant posts to a huddle, the message is prepended with a routing notice pointing recipients to where they can reply. The code scans active huddle rooms for the sender (prefers work huddles). Fallback for senders not in any huddle: `direct-{sender}`.
+
+### Room-switch performance (RESOLVED Aug 10, REQ-322)
+The messages table (1M+ rows, 2.3GB) had no index on conversationId -- every room fetch did a full table scan, and better-sqlite3's synchronous execution let those scans convoy into 30-second room switches. Fixed with composite index `idx_messages_conv_created ON messages(conversationId, createdAt)` created in `initDb()`. Room queries now ~5ms. Lesson carried to v2: indexes designed into the schema from day one.
 
 ### Sidebar blink on mass boot
 When Boss hits Raycast start and all 26 teammates activate simultaneously, the /api/rooms endpoint is called rapidly. Each activation emits a `huddle_update` SSE event, causing the browser to re-fetch /api/rooms repeatedly. The sidebar teammates column blinks on/off for 1-2 minutes until all activations settle. Likely cause: `getAliveTeammates()` polls Kitty socket `ls` which is expensive during mass boot.
