@@ -260,7 +260,7 @@ Teammate's PostToolUse hook (aether-relay.sh)
   → Filters: skip post_to_aether calls, skip credential paths
   → POST /api/tool-activity { sender, room, toolName, toolInput, toolOutput }
   → saveMessage(type: "tool_call") + SSE emit(toolCall: true)
-  → Fan-out via sendToKitty to: ORG.md group members + co-huddle participants (union, deduped)
+  → Fan-out via sendToKitty to: ORG.md group members + fan-out-overrides.json exceptions (union, deduped)
 ```
 
 ---
