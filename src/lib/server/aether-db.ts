@@ -63,6 +63,7 @@ export function initDb(): void {
 	} catch {
 		// column already exists
 	}
+	db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversationId, createdAt)`);
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS rooms (
 			id TEXT PRIMARY KEY,
