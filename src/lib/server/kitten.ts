@@ -206,18 +206,14 @@ function parseAliveFromLs(stdout: string): Set<string> {
 	} catch { return new Set(); }
 }
 
-export async function getAliveTeammates(): Promise<Set<string>> {
-	const alive = new Set<string>();
-
+export async function getAliveTeammates(): Promise<Set<string> | null> {
 	const localSocket = await discoverLocalSocket();
-	if (localSocket) {
-		try {
-			const { stdout } = await execFileAsync(KITTEN, ["@", "--to", localSocket, "ls"], { timeout: 3000 });
-			for (const t of parseAliveFromLs(stdout)) alive.add(t);
-		} catch {}
-	}
+	if (!localSocket) return null;
 
-	return alive;
+	try {
+		const { stdout } = await execFileAsync(KITTEN, ["@", "--to", localSocket, "ls"], { timeout: 3000 });
+		return parseAliveFromLs(stdout);
+	} catch { return null; }
 }
 
 export async function isTabAlive(teammate: string): Promise<boolean> {

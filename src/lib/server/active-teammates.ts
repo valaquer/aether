@@ -56,6 +56,7 @@ export function getActiveTeammatesSet(): Set<string> {
 async function reconcileWithKitty(): Promise<void> {
 	try {
 		const kittyAlive = await getAliveTeammates();
+		if (!kittyAlive) return;
 		const jsonActive = readActive();
 		const jsonNames = new Set(Object.keys(jsonActive));
 		let changed = false;
