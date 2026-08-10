@@ -26,7 +26,7 @@ library/aether-app/                    # App codebase (git: valaquer/aether)
 │   │   │   ├── houston-triage.ts      # 10-min triage timeout timer
 │   │   │   ├── config.ts             # App configuration
 │   │   │   ├── conversation.ts        # Upstream conversation CRUD (partially used)
-│   │   │   ├── database.ts           # Upstream MongoDB adapter (unused -- we use SQLite)
+│   │   │   ├── database.ts           # Upstream MongoDB adapter (neutralized -- init wrapped in try/catch, fails silently)
 │   │   │   ├── harness-reader.ts      # Codex rollout terminal chatter capture
 │   │   │   ├── codex-rollout.ts       # Codex rollout cursor management
 │   │   │   └── ...                    # Upstream dead code (endpoints/, router/, textGeneration/, mcp/, auth, models)
