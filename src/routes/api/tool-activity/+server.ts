@@ -1,11 +1,22 @@
 import type { RequestHandler } from "./$types";
 import { emitEvent } from "$lib/server/events";
-import { saveMessage, getActiveRoomsForTeammate, getHuddleMembers } from "$lib/server/aether-db";
+import { saveMessage, getActiveRoomsForTeammate } from "$lib/server/aether-db";
 import { sendToKitty } from "$lib/server/kitten";
 import { v4 } from "uuid";
 import fs from "fs";
 
 const ORG_PATH = "/Users/deepak-macmini/honeybloom/library/wiki/Organization/ORG.md";
+const FANOUT_OVERRIDES_PATH = "/Users/deepak-macmini/honeybloom/library/aether-app/fan-out-overrides.json";
+
+function getFanoutOverrides(sender: string): string[] {
+	try {
+		const raw = fs.readFileSync(FANOUT_OVERRIDES_PATH, "utf-8");
+		const overrides = JSON.parse(raw) as Record<string, string[]>;
+		return (overrides[sender.toLowerCase()] ?? []).map(m => m.toLowerCase());
+	} catch {
+		return [];
+	}
+}
 
 function getGroupMembers(sender: string): string[] {
 	const name = sender.toLowerCase();
@@ -101,20 +112,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
-	// Fan-out tool activity to group members + co-huddle participants' Kitty tabs (live mirror)
+	// Fan-out tool activity to team members + config overrides' Kitty tabs (live mirror)
 	if (isToolCall && !isResponse) {
 		const groupMembers = getGroupMembers(sender);
-		const coHuddleMembers: string[] = [];
-		for (const roomId of activeRooms) {
-			if (roomId.startsWith("huddle-") || roomId.startsWith("work-")) {
-				for (const m of getHuddleMembers(roomId)) {
-					if (m !== sender && !groupMembers.includes(m) && !coHuddleMembers.includes(m)) {
-						coHuddleMembers.push(m);
-					}
-				}
-			}
-		}
-		const allRecipients = [...groupMembers, ...coHuddleMembers];
+		const overrides = getFanoutOverrides(sender);
+		const allRecipients = [...new Set([...groupMembers, ...overrides])];
 		if (allRecipients.length > 0) {
 			const input = typeof data.toolInput === "string" ? data.toolInput : JSON.stringify(data.toolInput || "");
 			const label = data.summary || `[live-mirror] ${data.toolName}: ${input.substring(0, 200)}`;
