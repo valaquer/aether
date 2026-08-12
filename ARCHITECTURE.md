@@ -158,7 +158,7 @@ kitten.ts
   └── open-team.sh (teammate launcher)
 
 mcp-aether-server.js → POST /api/message, /api/speed-reader-*
-mcp-huddle-server.js → POST /api/huddle, /api/message (read_room)
+mcp-huddle-server.js → POST /api/huddle, GET /api/messages (read_room), /api/rooms (find_huddle)
 ```
 
 ### External System Dependencies
@@ -324,6 +324,9 @@ When Boss hits Raycast start and all 26 teammates activate simultaneously, the /
 
 ### +page.svelte size
 At 1537 lines, the main page file handles sidebar, chat, activity panel, speed reader, VCR controls, bookmarks, keyboard shortcuts, and lightbox -- all in one component. Further extraction is blocked on needing a central message store (per PLAYBOOK).
+
+### MCP scripts serve v2 (V2-045, Aug 12)
+MCP scripts (`mcp-aether-server.js`, `mcp-huddle-server.js`) live in this directory but target v2 at port 51820. `find_huddle` uses active-first priority with fixture fallback (prevents returning fixture IDs when an active huddle exists). `read_room` queries v2's `/api/messages` endpoint (the v1 `/api/huddle-history` endpoint was intentionally dropped in v2). Teammates' `.mcp.json` files must include explicit `AETHER_URL: http://localhost:51820` env to override any inherited shell environment.
 
 ### Stale references
 ARCHITECTURE.md (this file) previously used "Facade" (old project name) throughout and referenced deprecated systems (OpenCode, Codex, `/tmp/facade-*` paths). Active teammates file is `/tmp/aether-active-teammates.json`. MCP servers are `honeybloom-aether` and `honeybloom-huddle`.

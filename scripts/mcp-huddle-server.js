@@ -3,7 +3,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const AETHER_URL = process.env.AETHER_URL || "http://localhost:51730";
+const AETHER_URL = process.env.AETHER_URL || "http://localhost:51820";
 
 const server = new Server(
 	{ name: "Huddle MCP", version: "0.1.0" },
@@ -243,7 +243,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 				if (args.project) {
 					const proj = args.project.toLowerCase();
-					const match = allHuddles.find((h) => h.id.startsWith("work-") && h.name?.toLowerCase() === proj);
+					const match = allHuddles.find((h) => h.active && h.id.startsWith("work-") && h.name?.toLowerCase() === proj)
+						?? allHuddles.find((h) => h.id.startsWith("work-") && h.name?.toLowerCase() === proj);
 					if (!match) {
 						return { content: [{ type: "text", text: `No active work huddle for project "${args.project}".` }] };
 					}
@@ -259,7 +260,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				if (!host) {
 					return { content: [{ type: "text", text: "Provide either host (for team huddle) or project (for work huddle)." }] };
 				}
-				const match = allHuddles.find((h) => h.host === host && !h.id.startsWith("work-"));
+				const match = allHuddles.find((h) => h.active && h.host === host && !h.id.startsWith("work-"))
+					?? allHuddles.find((h) => h.host === host && !h.id.startsWith("work-"));
 				if (!match) {
 					return {
 						content: [{ type: "text", text: `No active team huddle for ${args.host}. The team may not be in a huddle right now.` }],
@@ -280,8 +282,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 				return { content: [{ type: "text", text: "Access denied — direct-burt rooms are restricted to Burt only." }] };
 			}
 			try {
-				const params = new URLSearchParams({ roomId: args.roomId });
-				const res = await fetch(`${AETHER_URL}/api/huddle-history?${params}`);
+				const params = new URLSearchParams({ room: args.roomId, limit: "-1" });
+				const res = await fetch(`${AETHER_URL}/api/messages?${params}`);
 				if (!res.ok) {
 					const text = await res.text();
 					try {
@@ -291,19 +293,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 						return { content: [{ type: "text", text }] };
 					}
 				}
-				const rooms = await res.json();
-				const formatted = rooms
-					.map((r) => {
-						const header = `--- ${r.roomId} (started ${r.startedAt}) ---`;
-						const msgs = r.messages
-							.map((m) => `[${m.createdAt}] ${m.sender}: ${m.content}`)
-							.join("\n");
-						return `${header}\n${msgs}`;
-					})
-					.join("\n\n");
+				const messages = await res.json();
+				if (!messages.length) {
+					return { content: [{ type: "text", text: "No messages found for this room." }] };
+				}
+				const startedAt = messages[0]?.createdAt ?? messages[0]?.created_at ?? "unknown";
+				const header = `--- ${args.roomId} (started ${startedAt}) ---`;
+				const formatted = messages
+					.map((m) => `[${m.createdAt || m.created_at}] ${m.sender}: ${m.content}`)
+					.join("\n");
 				return {
 					content: [
-						{ type: "text", text: formatted || "No messages found for this room." },
+						{ type: "text", text: `${header}\n${formatted}` },
 					],
 				};
 			} catch (err) {

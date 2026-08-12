@@ -8,7 +8,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const AETHER_URL = process.env.AETHER_URL || "http://localhost:51730";
+const AETHER_URL = process.env.AETHER_URL || "http://localhost:51820";
 const SENDER = process.env.AETHER_SENDER || basename(process.cwd());
 const ROOM = process.env.AETHER_ROOM || "direct-boss";
 
